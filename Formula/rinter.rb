@@ -1,13 +1,13 @@
 class Rinter < Formula
   desc "Run semantic policy checks from Rinfile.swift"
   homepage "https://github.com/novr/Rin"
-  version "0.0.5"
+  version "0.0.6"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/novr/Rin/releases/download/v0.0.5/rinter_0.0.5_darwin_arm64.tar.gz"
-      sha256 "d0e972f7496e83990691854b2c032b7b66bb42149142c01d273f0e3dbdbfd939"
+      url "https://github.com/novr/Rin/releases/download/v0.0.6/rinter_0.0.6_darwin_arm64.tar.gz"
+      sha256 "813ca6db8d114496cc42e0e8ad9574247eaddc2f87c35c4a13a47eb09f681337"
     end
   end
 
