@@ -50,10 +50,6 @@ jobs:
           VERSION: ${{ github.event.client_payload.version }}
           URL: ${{ github.event.client_payload.url }}
           SHA256: ${{ github.event.client_payload.sha256 }}
-          ARM_URL: ${{ github.event.client_payload.arm_url }}
-          ARM_SHA256: ${{ github.event.client_payload.arm_sha256 }}
-          INTEL_URL: ${{ github.event.client_payload.intel_url }}
-          INTEL_SHA256: ${{ github.event.client_payload.intel_sha256 }}
           DESC: ${{ github.event.client_payload.desc }}
           HOMEPAGE: ${{ github.event.client_payload.homepage }}
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
@@ -128,32 +124,20 @@ jobs:
           test -n "${FORMULA}" || (echo "client_payload.formula is required" && exit 1)
           test -n "${VERSION}" || (echo "client_payload.version is required" && exit 1)
           test -n "${SOURCE_REPO}" || (echo "client_payload.source_repo is required" && exit 1)
+          test -n "${URL}" || (echo "client_payload.url is required" && exit 1)
+          test -n "${SHA256}" || (echo "client_payload.sha256 is required" && exit 1)
           validate_formula_name
           validate_source_repo
           validate_binary_name "${BINARY:-${FORMULA}}"
           validate_license "${LICENSE:-MIT}"
+          validate_release_url "${URL}" "url"
+          validate_sha256 "${SHA256}" "sha256"
 
           if [[ -n "${HOMEPAGE}" ]]; then
             validate_homepage
           elif [[ "${ACTION}" == "add-formula" ]]; then
             echo "client_payload.homepage is required for add-formula"
             exit 1
-          fi
-
-          if [[ -n "${ARM_URL}" || -n "${INTEL_URL}" || -n "${ARM_SHA256}" || -n "${INTEL_SHA256}" ]]; then
-            test -n "${ARM_URL}" || (echo "client_payload.arm_url is required for multi-arch" && exit 1)
-            test -n "${ARM_SHA256}" || (echo "client_payload.arm_sha256 is required for multi-arch" && exit 1)
-            test -n "${INTEL_URL}" || (echo "client_payload.intel_url is required for multi-arch" && exit 1)
-            test -n "${INTEL_SHA256}" || (echo "client_payload.intel_sha256 is required for multi-arch" && exit 1)
-            validate_release_url "${ARM_URL}" "arm_url"
-            validate_release_url "${INTEL_URL}" "intel_url"
-            validate_sha256 "${ARM_SHA256}" "arm_sha256"
-            validate_sha256 "${INTEL_SHA256}" "intel_sha256"
-          else
-            test -n "${URL}" || (echo "client_payload.url is required" && exit 1)
-            test -n "${SHA256}" || (echo "client_payload.sha256 is required" && exit 1)
-            validate_release_url "${URL}" "url"
-            validate_sha256 "${SHA256}" "sha256"
           fi
 
           if [[ "${ACTION}" == "add-formula" ]]; then
@@ -168,10 +152,6 @@ jobs:
           VERSION: ${{ github.event.client_payload.version }}
           URL: ${{ github.event.client_payload.url }}
           SHA256: ${{ github.event.client_payload.sha256 }}
-          ARM_URL: ${{ github.event.client_payload.arm_url }}
-          ARM_SHA256: ${{ github.event.client_payload.arm_sha256 }}
-          INTEL_URL: ${{ github.event.client_payload.intel_url }}
-          INTEL_SHA256: ${{ github.event.client_payload.intel_sha256 }}
           DESC: ${{ github.event.client_payload.desc }}
           HOMEPAGE: ${{ github.event.client_payload.homepage }}
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}

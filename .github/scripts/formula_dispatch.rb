@@ -9,7 +9,8 @@ LICENSE_PATTERN = /\A[A-Za-z0-9.+()-]+\z/
 SHA256_PATTERN = /\A[a-f0-9]{64}\z/i
 SOURCE_REPO_PATTERN = /\Anovr\/[A-Za-z0-9._-]+\z/
 NOVR_GITHUB_URL_PATTERN = %r{\Ahttps://github\.com/novr/}i
-MULTI_ARCH_FORMULA_PATTERN = /on_intel do\n\s+url "/m
+MACOS_URL_SHA256_PATTERN = /(on_macos do\n\s+url )"[^"]+"\n(\s+sha256 )"[^"]+"/m
+LEGACY_MACOS_ARM_PATTERN = /on_macos do\n\s+on_arm do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end\n\s+end/m
 
 def formula_path
   name = ENV.fetch("FORMULA")
@@ -78,16 +79,8 @@ def validate_release_url!(url, label = "url")
 end
 
 def validate_urls_and_checksums!
-  if multi_arch?
-    %w[ARM INTEL].each do |arch|
-      label = "#{arch.downcase}_url"
-      validate_release_url!(ENV.fetch("#{arch}_URL"), label)
-      validate_sha256!(ENV.fetch("#{arch}_SHA256"), "#{arch.downcase}_sha256")
-    end
-  else
-    validate_release_url!(ENV.fetch("URL"))
-    validate_sha256!(ENV.fetch("SHA256"))
-  end
+  validate_release_url!(ENV.fetch("URL"))
+  validate_sha256!(ENV.fetch("SHA256"))
 end
 
 def validate_metadata!
@@ -96,28 +89,29 @@ def validate_metadata!
   validate_license!(license)
 end
 
-def multi_arch?
-  arm_url = ENV["ARM_URL"]
-  intel_url = ENV["INTEL_URL"]
-  arm_url && !arm_url.empty? && intel_url && !intel_url.empty?
-end
-
-def multi_arch_formula?(content)
-  content.match?(MULTI_ARCH_FORMULA_PATTERN)
-end
-
 def upsert_allowed?
   desc = ENV["DESC"]
   homepage = ENV["HOMEPAGE"]
   desc && !desc.empty? && homepage && !homepage.empty?
 end
 
-def replace_platform_block!(content, platform, url, sha256)
-  block = platform == "arm" ? "on_arm" : "on_intel"
-  pattern = /(#{block} do\n\s+url )"[^"]+"\n(\s+sha256 )"[^"]+"/m
-  abort("Failed to find #{block} block in #{formula_path}") unless content.match?(pattern)
+def macos_block(url, sha256)
+  <<~RUBY.chomp
+    on_macos do
+      url "#{url}"
+      sha256 "#{sha256}"
+    end
+  RUBY
+end
 
-  content.sub(pattern, "\\1\"#{url}\"\n\\2\"#{sha256}\"")
+def replace_macos_url_sha256!(content, url, sha256)
+  if content.match?(MACOS_URL_SHA256_PATTERN)
+    return content.sub(MACOS_URL_SHA256_PATTERN, "\\1\"#{url}\"\n\\2\"#{sha256}\"")
+  end
+
+  abort("Failed to find on_macos url/sha256 block in #{formula_path}") unless content.match?(LEGACY_MACOS_ARM_PATTERN)
+
+  content.sub(LEGACY_MACOS_ARM_PATTERN, macos_block(url, sha256))
 end
 
 def update_version(content)
@@ -141,29 +135,7 @@ def update_formula!
 
   content = File.read(path)
   content = update_version(content)
-
-  if multi_arch?
-    abort("Single-arch formula cannot be updated with multi-arch payload") unless multi_arch_formula?(content)
-
-    %w[arm intel].each do |platform|
-      key = platform.upcase
-      content = replace_platform_block!(
-        content,
-        platform,
-        ENV.fetch("#{key}_URL"),
-        ENV.fetch("#{key}_SHA256")
-      )
-    end
-  elsif multi_arch_formula?(content)
-    abort("Multi-arch payload is required for #{formula_path}")
-  else
-    content = replace_platform_block!(
-      content,
-      "arm",
-      ENV.fetch("URL"),
-      ENV.fetch("SHA256")
-    )
-  end
+  content = replace_macos_url_sha256!(content, ENV.fetch("URL"), ENV.fetch("SHA256"))
 
   File.write(path, content)
 end
@@ -176,11 +148,10 @@ def add_formula!
   path = formula_path
   abort("Formula already exists: #{path}") if File.file?(path)
 
-  template = multi_arch? ? multi_arch_template : single_arch_template
-  File.write(path, ERB.new(template, trim_mode: "-").result(binding))
+  File.write(path, ERB.new(formula_template, trim_mode: "-").result(binding))
 end
 
-def single_arch_template
+def formula_template
   <<~RUBY
     class <%= class_name %> < Formula
       desc "<%= ruby_string(ENV.fetch("DESC")) %>"
@@ -189,41 +160,8 @@ def single_arch_template
       license "<%= ruby_string(license) %>"
 
       on_macos do
-        on_arm do
-          url "<%= ruby_string(ENV.fetch("URL")) %>"
-          sha256 "<%= ruby_string(ENV.fetch("SHA256")) %>"
-        end
-      end
-
-      def install
-        bin.install "<%= ruby_string(binary) %>"
-      end
-
-      test do
-        output = shell_output("\#{bin}/<%= ruby_string(binary) %> --help")
-        assert_match "<%= ruby_string(test_match) %>", output
-      end
-    end
-  RUBY
-end
-
-def multi_arch_template
-  <<~RUBY
-    class <%= class_name %> < Formula
-      desc "<%= ruby_string(ENV.fetch("DESC")) %>"
-      homepage "<%= ruby_string(ENV.fetch("HOMEPAGE")) %>"
-      version "<%= ruby_string(ENV.fetch("VERSION")) %>"
-      license "<%= ruby_string(license) %>"
-
-      on_macos do
-        on_arm do
-          url "<%= ruby_string(ENV.fetch("ARM_URL")) %>"
-          sha256 "<%= ruby_string(ENV.fetch("ARM_SHA256")) %>"
-        end
-        on_intel do
-          url "<%= ruby_string(ENV.fetch("INTEL_URL")) %>"
-          sha256 "<%= ruby_string(ENV.fetch("INTEL_SHA256")) %>"
-        end
+        url "<%= ruby_string(ENV.fetch("URL")) %>"
+        sha256 "<%= ruby_string(ENV.fetch("SHA256")) %>"
       end
 
       def install
