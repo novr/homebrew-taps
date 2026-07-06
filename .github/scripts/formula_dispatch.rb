@@ -177,11 +177,15 @@ def formula_template
 end
 
 def binary
-  ENV.fetch("BINARY", ENV.fetch("FORMULA"))
+  value = ENV["BINARY"]
+  value = ENV.fetch("FORMULA") if value.nil? || value.empty?
+  value
 end
 
 def license
-  ENV.fetch("LICENSE", "MIT")
+  value = ENV["LICENSE"]
+  value = "MIT" if value.nil? || value.empty?
+  value
 end
 
 def test_match
