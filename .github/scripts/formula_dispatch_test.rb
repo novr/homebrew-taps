@@ -81,7 +81,18 @@ with_workspace do |_dir, formula_dir|
   refute!("formula should not use on_arm block") { content.include?("on_arm do") }
   assert!("ruby syntax should be valid") { system("ruby", "-c", formula_path) }
 
-  assert!("add should reject duplicates") { !run_script("add") }
+  assert!("add should update an existing formula") do
+    run_script(
+      "add",
+      {
+        "VERSION" => "1.0.2",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.2/test-cli_1.0.2_darwin.tar.gz"
+      }
+    )
+  end
+
+  added_again = read_formula(formula_path)
+  assert!("add should bump version on existing formula") { added_again.include?('version "1.0.2"') }
 
   assert!("update should succeed") do
     run_script(

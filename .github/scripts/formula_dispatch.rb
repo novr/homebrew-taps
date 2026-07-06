@@ -8,8 +8,10 @@ BINARY_NAME_PATTERN = /\A[a-z0-9_-]+\z/
 LICENSE_PATTERN = /\A[A-Za-z0-9.+()-]+\z/
 SHA256_PATTERN = /\A[a-f0-9]{64}\z/i
 SOURCE_REPO_PATTERN = /\Anovr\/[A-Za-z0-9._-]+\z/
+# dispatch 元を novr org に限定する（tap の信頼境界）
 NOVR_GITHUB_URL_PATTERN = %r{\Ahttps://github\.com/novr/}i
 MACOS_URL_SHA256_PATTERN = /(on_macos do\n\s+url )"[^"]+"\n(\s+sha256 )"[^"]+"/m
+# universal 化前の Formula を壊さず移行する
 LEGACY_MACOS_ARM_PATTERN = /on_macos do\n\s+on_arm do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end\n\s+end/m
 
 def formula_path
@@ -146,7 +148,8 @@ def add_formula!
   abort("client_payload.desc is required for add-formula") unless upsert_allowed?
 
   path = formula_path
-  abort("Formula already exists: #{path}") if File.file?(path)
+  # release 側が add-formula 固定でも既存 Formula を更新できるようにする
+  return update_formula! if File.file?(path)
 
   File.write(path, ERB.new(formula_template, trim_mode: "-").result(binding))
 end
