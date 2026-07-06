@@ -1,10 +1,10 @@
-# Nkomiya Taps
+# novr/homebrew-taps
 
 ## How do I install these formulae?
 
-`brew install nkomiya/taps/<formula>`
+`brew install novr/taps/<formula>`
 
-Or `brew tap nkomiya/taps` and then `brew install <formula>`.
+Or `brew tap novr/taps` and then `brew install <formula>`.
 
 ## Documentation
 

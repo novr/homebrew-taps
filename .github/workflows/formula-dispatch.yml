@@ -1,0 +1,242 @@
+name: formula by dispatch
+
+on:
+  repository_dispatch:
+    types:
+      - update-formula
+      - add-formula
+  pull_request:
+    paths:
+      - ".github/scripts/**"
+      - ".github/workflows/formula-dispatch.yml"
+      - "Formula/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/scripts/**"
+      - ".github/workflows/formula-dispatch.yml"
+      - "Formula/**"
+
+concurrency:
+  group: formula-dispatch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    if: github.event_name != 'repository_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Run formula dispatch tests
+        run: ruby .github/scripts/formula_dispatch_test.rb
+
+  formula:
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Validate payload
+        env:
+          ACTION: ${{ github.event.action }}
+          FORMULA: ${{ github.event.client_payload.formula }}
+          VERSION: ${{ github.event.client_payload.version }}
+          URL: ${{ github.event.client_payload.url }}
+          SHA256: ${{ github.event.client_payload.sha256 }}
+          ARM_URL: ${{ github.event.client_payload.arm_url }}
+          ARM_SHA256: ${{ github.event.client_payload.arm_sha256 }}
+          INTEL_URL: ${{ github.event.client_payload.intel_url }}
+          INTEL_SHA256: ${{ github.event.client_payload.intel_sha256 }}
+          DESC: ${{ github.event.client_payload.desc }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
+          LICENSE: ${{ github.event.client_payload.license }}
+          BINARY: ${{ github.event.client_payload.binary }}
+        run: |
+          set -euo pipefail
+
+          validate_formula_name() {
+            [[ "${FORMULA}" =~ ^[a-z0-9-]+$ ]] || {
+              echo "Invalid formula name: ${FORMULA}"
+              exit 1
+            }
+          }
+
+          validate_binary_name() {
+            local value="$1"
+            [[ "${value}" =~ ^[a-z0-9_-]+$ ]] || {
+              echo "Invalid binary name: ${value}"
+              exit 1
+            }
+          }
+
+          validate_license() {
+            local value="$1"
+            [[ "${value}" =~ ^[A-Za-z0-9.+()-]+$ ]] || {
+              echo "Invalid license: ${value}"
+              exit 1
+            }
+          }
+
+          validate_sha256() {
+            local value="$1"
+            local label="$2"
+            [[ "${value}" =~ ^[a-fA-F0-9]{64}$ ]] || {
+              echo "Invalid ${label}: ${value}"
+              exit 1
+            }
+          }
+
+          validate_source_repo() {
+            [[ "${SOURCE_REPO}" =~ ^novr/[A-Za-z0-9._-]+$ ]] || {
+              echo "Invalid source_repo: ${SOURCE_REPO}"
+              exit 1
+            }
+          }
+
+          validate_homepage() {
+            local expected="https://github.com/${SOURCE_REPO}"
+            [[ "${HOMEPAGE}" == "${expected}" ]] || {
+              echo "homepage must be ${expected}"
+              exit 1
+            }
+          }
+
+          validate_release_url() {
+            local value="$1"
+            local label="$2"
+            local expected_prefix="https://github.com/${SOURCE_REPO}/releases/"
+
+            [[ "${value}" =~ ^https://github\.com/novr/ ]] || {
+              echo "URL must be under https://github.com/novr/ (${label}): ${value}"
+              exit 1
+            }
+
+            [[ "${value}" == "${expected_prefix}"* ]] || {
+              echo "URL must be a release asset for ${SOURCE_REPO} (${label}): ${value}"
+              exit 1
+            }
+          }
+
+          test -n "${FORMULA}" || (echo "client_payload.formula is required" && exit 1)
+          test -n "${VERSION}" || (echo "client_payload.version is required" && exit 1)
+          test -n "${SOURCE_REPO}" || (echo "client_payload.source_repo is required" && exit 1)
+          validate_formula_name
+          validate_source_repo
+          validate_binary_name "${BINARY:-${FORMULA}}"
+          validate_license "${LICENSE:-MIT}"
+
+          if [[ -n "${HOMEPAGE}" ]]; then
+            validate_homepage
+          elif [[ "${ACTION}" == "add-formula" ]]; then
+            echo "client_payload.homepage is required for add-formula"
+            exit 1
+          fi
+
+          if [[ -n "${ARM_URL}" || -n "${INTEL_URL}" || -n "${ARM_SHA256}" || -n "${INTEL_SHA256}" ]]; then
+            test -n "${ARM_URL}" || (echo "client_payload.arm_url is required for multi-arch" && exit 1)
+            test -n "${ARM_SHA256}" || (echo "client_payload.arm_sha256 is required for multi-arch" && exit 1)
+            test -n "${INTEL_URL}" || (echo "client_payload.intel_url is required for multi-arch" && exit 1)
+            test -n "${INTEL_SHA256}" || (echo "client_payload.intel_sha256 is required for multi-arch" && exit 1)
+            validate_release_url "${ARM_URL}" "arm_url"
+            validate_release_url "${INTEL_URL}" "intel_url"
+            validate_sha256 "${ARM_SHA256}" "arm_sha256"
+            validate_sha256 "${INTEL_SHA256}" "intel_sha256"
+          else
+            test -n "${URL}" || (echo "client_payload.url is required" && exit 1)
+            test -n "${SHA256}" || (echo "client_payload.sha256 is required" && exit 1)
+            validate_release_url "${URL}" "url"
+            validate_sha256 "${SHA256}" "sha256"
+          fi
+
+          if [[ "${ACTION}" == "add-formula" ]]; then
+            test -n "${DESC}" || (echo "client_payload.desc is required for add-formula" && exit 1)
+            test -n "${HOMEPAGE}" || (echo "client_payload.homepage is required for add-formula" && exit 1)
+          fi
+
+      - name: Apply formula change
+        env:
+          ACTION: ${{ github.event.action }}
+          FORMULA: ${{ github.event.client_payload.formula }}
+          VERSION: ${{ github.event.client_payload.version }}
+          URL: ${{ github.event.client_payload.url }}
+          SHA256: ${{ github.event.client_payload.sha256 }}
+          ARM_URL: ${{ github.event.client_payload.arm_url }}
+          ARM_SHA256: ${{ github.event.client_payload.arm_sha256 }}
+          INTEL_URL: ${{ github.event.client_payload.intel_url }}
+          INTEL_SHA256: ${{ github.event.client_payload.intel_sha256 }}
+          DESC: ${{ github.event.client_payload.desc }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
+          LICENSE: ${{ github.event.client_payload.license }}
+          BINARY: ${{ github.event.client_payload.binary }}
+          TEST_MATCH: ${{ github.event.client_payload.test_match }}
+        run: |
+          set -euo pipefail
+          case "${ACTION}" in
+            update-formula)
+              ruby .github/scripts/formula_dispatch.rb update
+              ;;
+            add-formula)
+              ruby .github/scripts/formula_dispatch.rb add
+              ;;
+            *)
+              echo "Unsupported action: ${ACTION}"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify formula syntax
+        env:
+          FORMULA: ${{ github.event.client_payload.formula }}
+        run: |
+          set -euo pipefail
+          ruby -c "Formula/${FORMULA}.rb"
+
+      - name: Commit and push
+        env:
+          ACTION: ${{ github.event.action }}
+          FORMULA: ${{ github.event.client_payload.formula }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No changes detected. Skipping commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Formula/${FORMULA}.rb"
+
+          case "${ACTION}" in
+            update-formula)
+              git commit -m "Update ${FORMULA} formula to ${VERSION}"
+              ;;
+            add-formula)
+              git commit -m "Add ${FORMULA} formula at ${VERSION}"
+              ;;
+            *)
+              echo "Unsupported action: ${ACTION}"
+              exit 1
+              ;;
+          esac
+
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+
+            echo "Push failed on attempt ${attempt}. Rebasing and retrying..."
+            git pull --rebase origin main
+          done
+
+          echo "Failed to push after 3 attempts."
+          exit 1
