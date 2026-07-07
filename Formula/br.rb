@@ -1,12 +1,12 @@
 class Br < Formula
   desc "Unofficial Bitrise CLI for build history and logs"
   homepage "https://github.com/novr/bitrise-cli"
-  version "0.0.3"
+  version "0.0.2"
   license "MIT"
 
   on_macos do
-    url "https://github.com/novr/bitrise-cli/releases/download/v0.0.3/br_0.0.3_darwin.tar.gz"
-    sha256 "9bbe616596a3d0a95b0d405cee0ac14e7b5bb5c9e32b4263f4aa7447aa80f9e3"
+    url "https://github.com/novr/bitrise-cli/releases/download/v0.0.2/br_0.0.2_darwin.tar.gz"
+    sha256 "039ec3e45e612460011efe046c3f2aacc2fe0fec465d8fe14f98296e158748a4"
   end
 
   def install
