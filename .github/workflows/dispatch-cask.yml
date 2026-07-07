@@ -1,0 +1,99 @@
+name: Dispatch cask update
+
+on:
+  workflow_call:
+    inputs:
+      cask:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      sha256:
+        required: true
+        type: string
+      desc:
+        required: true
+        type: string
+      app:
+        required: true
+        type: string
+      asset:
+        required: true
+        type: string
+      name:
+        required: false
+        type: string
+        default: ""
+      minimum_macos:
+        required: false
+        type: string
+        default: sonoma
+      source_repo:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      NOVRD_BOT_CLIENT_ID:
+        required: true
+      NOVRD_BOT_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.NOVRD_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.NOVRD_BOT_KEY }}
+          owner: novr
+          repositories: homebrew-taps
+
+      - name: Dispatch homebrew cask update
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          CASK: ${{ inputs.cask }}
+          VERSION: ${{ inputs.version }}
+          SHA256: ${{ inputs.sha256 }}
+          DESC: ${{ inputs.desc }}
+          APP: ${{ inputs.app }}
+          ASSET: ${{ inputs.asset }}
+          NAME: ${{ inputs.name }}
+          MINIMUM_MACOS: ${{ inputs.minimum_macos }}
+          SOURCE_REPO: ${{ inputs.source_repo != '' && inputs.source_repo || github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOMEPAGE="https://github.com/${SOURCE_REPO}"
+          jq -n \
+            --arg cask "${CASK}" \
+            --arg version "${VERSION}" \
+            --arg sha256 "${SHA256}" \
+            --arg desc "${DESC}" \
+            --arg homepage "${HOMEPAGE}" \
+            --arg source_repo "${SOURCE_REPO}" \
+            --arg app "${APP}" \
+            --arg asset "${ASSET}" \
+            --arg name "${NAME}" \
+            --arg minimum_macos "${MINIMUM_MACOS}" \
+            '{
+              event_type: "update-cask",
+              client_payload: {
+                cask: $cask,
+                version: $version,
+                sha256: $sha256,
+                desc: $desc,
+                homepage: $homepage,
+                source_repo: $source_repo,
+                app: $app,
+                asset: $asset,
+                name: $name,
+                minimum_macos: $minimum_macos
+              }
+            }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -
