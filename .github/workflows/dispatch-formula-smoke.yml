@@ -16,5 +16,5 @@ jobs:
       test_match: "Bitrise CLI"
       source_repo: novr/bitrise-cli
     secrets:
-      NOVRD_BOT_APP_ID: ${{ secrets.NOVRD_BOT_APP_ID }}
+      NOVRD_BOT_CLIENT_ID: ${{ secrets.NOVRD_BOT_CLIENT_ID }}
       NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}

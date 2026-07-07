@@ -4,7 +4,7 @@ novr org 配下の CLI repo から universal macOS リリースを出し、[home
 
 ## 前提
 
-- repo に `NOVRD_BOT_APP_ID` / `NOVRD_BOT_KEY`（GitHub App、homebrew-taps への dispatch 権限）
+- repo に `NOVRD_BOT_CLIENT_ID` / `NOVRD_BOT_KEY`（GitHub App、homebrew-taps への dispatch 権限）
 - org の Settings → Actions → General で、呼び出し元 repo から `novr/homebrew-taps` の reusable workflow へアクセス可能
 - macOS リリースは arm64 + x86_64 の universal binary（単一 `darwin.tar.gz`）
 
@@ -30,9 +30,9 @@ dispatch-formula:
     desc: "One-line description"
     binary: mytool
     test_match: "expected --help substring"
-  secrets:
-    NOVRD_BOT_APP_ID: ${{ secrets.NOVRD_BOT_APP_ID }}
-    NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
+    secrets:
+      NOVRD_BOT_CLIENT_ID: ${{ secrets.NOVRD_BOT_CLIENT_ID }}
+      NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
 ```
 
 `source_repo` と `homepage` は reusable 側で呼び出し元 repo から自動導出する。本番では渡さない。
