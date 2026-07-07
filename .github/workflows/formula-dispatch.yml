@@ -9,6 +9,8 @@ on:
     paths:
       - ".github/scripts/**"
       - ".github/workflows/formula-dispatch.yml"
+      - ".github/workflows/dispatch-formula.yml"
+      - ".github/workflows/dispatch-formula-smoke.yml"
       - "Formula/**"
   push:
     branches:
@@ -16,6 +18,8 @@ on:
     paths:
       - ".github/scripts/**"
       - ".github/workflows/formula-dispatch.yml"
+      - ".github/workflows/dispatch-formula.yml"
+      - ".github/workflows/dispatch-formula-smoke.yml"
       - "Formula/**"
 
 concurrency:

@@ -1,0 +1,20 @@
+name: Dispatch formula smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/dispatch-formula.yml
+    with:
+      formula: br
+      version: "0.0.3"
+      url: "https://github.com/novr/bitrise-cli/releases/download/v0.0.3/br_0.0.3_darwin.tar.gz"
+      sha256: "9bbe616596a3d0a95b0d405cee0ac14e7b5bb5c9e32b4263f4aa7447aa80f9e3"
+      desc: "Unofficial Bitrise CLI for build history and logs"
+      binary: br
+      test_match: "Bitrise CLI"
+      source_repo: novr/bitrise-cli
+    secrets:
+      NOVRD_BOT_APP_ID: ${{ secrets.NOVRD_BOT_APP_ID }}
+      NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
