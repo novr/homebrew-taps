@@ -1,0 +1,208 @@
+name: cask by dispatch
+
+on:
+  repository_dispatch:
+    types:
+      - update-cask
+      - add-cask
+  pull_request:
+    paths:
+      - ".github/scripts/cask_dispatch.rb"
+      - ".github/scripts/cask_dispatch_test.rb"
+      - ".github/workflows/cask-dispatch.yml"
+      - ".github/workflows/dispatch-cask.yml"
+      - "Casks/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/scripts/cask_dispatch.rb"
+      - ".github/scripts/cask_dispatch_test.rb"
+      - ".github/workflows/cask-dispatch.yml"
+      - ".github/workflows/dispatch-cask.yml"
+      - "Casks/**"
+
+concurrency:
+  group: cask-dispatch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    if: github.event_name != 'repository_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run cask dispatch tests
+        run: ruby .github/scripts/cask_dispatch_test.rb
+
+  cask:
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate payload
+        env:
+          ACTION: ${{ github.event.action }}
+          CASK: ${{ github.event.client_payload.cask }}
+          VERSION: ${{ github.event.client_payload.version }}
+          SHA256: ${{ github.event.client_payload.sha256 }}
+          DESC: ${{ github.event.client_payload.desc }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
+          APP: ${{ github.event.client_payload.app }}
+          ASSET: ${{ github.event.client_payload.asset }}
+          NAME: ${{ github.event.client_payload.name }}
+          MINIMUM_MACOS: ${{ github.event.client_payload.minimum_macos }}
+        run: |
+          set -euo pipefail
+
+          validate_cask_name() {
+            [[ "${CASK}" =~ ^[a-z0-9-]+$ ]] || {
+              echo "Invalid cask name: ${CASK}"
+              exit 1
+            }
+          }
+
+          validate_app_name() {
+            [[ "${APP}" =~ ^[A-Za-z0-9._-]+\.app$ ]] || {
+              echo "Invalid app name: ${APP}"
+              exit 1
+            }
+          }
+
+          validate_asset_name() {
+            [[ "${ASSET}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+              echo "Invalid asset name: ${ASSET}"
+              exit 1
+            }
+          }
+
+          validate_sha256() {
+            [[ "${SHA256}" =~ ^[a-fA-F0-9]{64}$ ]] || {
+              echo "Invalid sha256: ${SHA256}"
+              exit 1
+            }
+          }
+
+          validate_source_repo() {
+            [[ "${SOURCE_REPO}" =~ ^novr/[A-Za-z0-9._-]+$ ]] || {
+              echo "Invalid source_repo: ${SOURCE_REPO}"
+              exit 1
+            }
+          }
+
+          validate_homepage() {
+            local expected="https://github.com/${SOURCE_REPO}"
+            [[ "${HOMEPAGE}" == "${expected}" ]] || {
+              echo "homepage must be ${expected}"
+              exit 1
+            }
+          }
+
+          test -n "${CASK}" || (echo "client_payload.cask is required" && exit 1)
+          test -n "${VERSION}" || (echo "client_payload.version is required" && exit 1)
+          test -n "${SOURCE_REPO}" || (echo "client_payload.source_repo is required" && exit 1)
+          test -n "${SHA256}" || (echo "client_payload.sha256 is required" && exit 1)
+          test -n "${APP}" || (echo "client_payload.app is required" && exit 1)
+          test -n "${ASSET}" || (echo "client_payload.asset is required" && exit 1)
+          validate_cask_name
+          validate_source_repo
+          validate_app_name
+          validate_asset_name
+          validate_sha256
+
+          if [[ -n "${HOMEPAGE}" ]]; then
+            validate_homepage
+          elif [[ "${ACTION}" == "add-cask" ]]; then
+            echo "client_payload.homepage is required for add-cask"
+            exit 1
+          fi
+
+          if [[ "${ACTION}" == "add-cask" ]]; then
+            test -n "${DESC}" || (echo "client_payload.desc is required for add-cask" && exit 1)
+            test -n "${HOMEPAGE}" || (echo "client_payload.homepage is required for add-cask" && exit 1)
+          fi
+
+      - name: Apply cask change
+        env:
+          ACTION: ${{ github.event.action }}
+          CASK: ${{ github.event.client_payload.cask }}
+          VERSION: ${{ github.event.client_payload.version }}
+          SHA256: ${{ github.event.client_payload.sha256 }}
+          DESC: ${{ github.event.client_payload.desc }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
+          APP: ${{ github.event.client_payload.app }}
+          ASSET: ${{ github.event.client_payload.asset }}
+          NAME: ${{ github.event.client_payload.name }}
+          MINIMUM_MACOS: ${{ github.event.client_payload.minimum_macos }}
+        run: |
+          set -euo pipefail
+          export MINIMUM_MACOS="${MINIMUM_MACOS:-sonoma}"
+          case "${ACTION}" in
+            update-cask)
+              ruby .github/scripts/cask_dispatch.rb update
+              ;;
+            add-cask)
+              ruby .github/scripts/cask_dispatch.rb add
+              ;;
+            *)
+              echo "Unsupported action: ${ACTION}"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify cask syntax
+        env:
+          CASK: ${{ github.event.client_payload.cask }}
+        run: |
+          set -euo pipefail
+          ruby -c "Casks/${CASK}.rb"
+
+      - name: Commit and push
+        env:
+          ACTION: ${{ github.event.action }}
+          CASK: ${{ github.event.client_payload.cask }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Casks/${CASK}.rb"
+
+          if git diff --cached --quiet; then
+            echo "No changes detected. Skipping commit."
+            exit 0
+          fi
+
+          case "${ACTION}" in
+            update-cask)
+              git commit -m "Update ${CASK} cask to ${VERSION}"
+              ;;
+            add-cask)
+              git commit -m "Add ${CASK} cask at ${VERSION}"
+              ;;
+            *)
+              echo "Unsupported action: ${ACTION}"
+              exit 1
+              ;;
+          esac
+
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+
+            echo "Push failed on attempt ${attempt}. Rebasing and retrying..."
+            git pull --rebase origin main
+          done
+
+          echo "Failed to push after 3 attempts."
+          exit 1
