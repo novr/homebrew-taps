@@ -69,23 +69,31 @@ dispatch-cask:
 
 ## 緊急再実行（reusable 非経由）
 
-App token 取得後、payload を直接送る。
+App token 取得後、payload を直接送る（`jq` 推奨）。
 
 ```bash
-gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF
-{
-  "event_type": "update-cask",
-  "client_payload": {
-    "cask": "myapp",
-    "version": "1.0.0",
-    "sha256": "<sha256>",
-    "desc": "One-line description",
-    "homepage": "https://github.com/novr/myapp",
-    "source_repo": "novr/myapp",
-    "app": "MyApp.app",
-    "asset": "MyApp-macOS.zip",
-    "minimum_macos": "sonoma"
-  }
-}
-EOF
+jq -n \
+  --arg cask myapp \
+  --arg version 1.0.0 \
+  --arg sha256 "<sha256>" \
+  --arg desc "One-line description" \
+  --arg homepage "https://github.com/novr/myapp" \
+  --arg source_repo novr/myapp \
+  --arg app "MyApp.app" \
+  --arg asset "MyApp-macOS.zip" \
+  --arg minimum_macos sonoma \
+  '{
+    event_type: "update-cask",
+    client_payload: {
+      cask: $cask,
+      version: $version,
+      sha256: $sha256,
+      desc: $desc,
+      homepage: $homepage,
+      source_repo: $source_repo,
+      app: $app,
+      asset: $asset,
+      minimum_macos: $minimum_macos
+    }
+  }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -
 ```

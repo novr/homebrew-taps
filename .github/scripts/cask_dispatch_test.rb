@@ -22,10 +22,6 @@ def assert!(message)
   raise "Assertion failed: #{message}" unless yield
 end
 
-def refute!(message)
-  raise "Assertion failed: #{message}" if yield
-end
-
 def with_workspace
   Dir.mktmpdir("cask-dispatch-test-") do |dir|
     cask_dir = File.join(dir, "Casks")
@@ -86,6 +82,10 @@ with_workspace do |_dir, cask_dir|
 
   assert!("homepage mismatch should fail") do
     !run_script("update", { "HOMEPAGE" => "https://github.com/novr/Other" })
+  end
+
+  assert!("invalid version should fail") do
+    !run_script("update", { "VERSION" => '1.0"evil' })
   end
 
   assert!("invalid minimum_macos should fail") do

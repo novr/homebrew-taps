@@ -70,6 +70,13 @@ jobs:
             }
           }
 
+          validate_version() {
+            [[ "${VERSION}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+              echo "Invalid version: ${VERSION}"
+              exit 1
+            }
+          }
+
           validate_app_name() {
             [[ "${APP}" =~ ^[A-Za-z0-9._-]+\.app$ ]] || {
               echo "Invalid app name: ${APP}"
@@ -121,6 +128,7 @@ jobs:
           test -n "${APP}" || (echo "client_payload.app is required" && exit 1)
           test -n "${ASSET}" || (echo "client_payload.asset is required" && exit 1)
           validate_cask_name
+          validate_version
           validate_source_repo
           validate_app_name
           validate_asset_name

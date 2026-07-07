@@ -4,6 +4,7 @@
 require "erb"
 
 CASK_NAME_PATTERN = /\A[a-z0-9-]+\z/
+VERSION_PATTERN = /\A[A-Za-z0-9._-]+\z/
 APP_NAME_PATTERN = /\A[A-Za-z0-9._-]+\.app\z/
 ASSET_NAME_PATTERN = /\A[A-Za-z0-9._-]+\z/
 MACOS_SYMBOL_PATTERN = /\A[a-z0-9_]+\z/
@@ -53,6 +54,10 @@ end
 
 def validate_metadata!
   validate_source_repo!
+
+  version = ENV.fetch("VERSION")
+  abort("Invalid version: #{version}") unless version.match?(VERSION_PATTERN)
+
   validate_sha256!(ENV.fetch("SHA256"))
 
   app = ENV.fetch("APP")
@@ -76,7 +81,7 @@ def update_version(content)
     abort("Failed to find version in #{cask_path}")
   end
 
-  content.sub(/^\s*version\s+".*"$/, "  version \"#{ENV.fetch("VERSION")}\"")
+  content.sub(/^\s*version\s+".*"$/, "  version \"#{ruby_string(ENV.fetch("VERSION"))}\"")
 end
 
 def update_sha256(content)
