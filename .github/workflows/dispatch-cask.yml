@@ -71,22 +71,29 @@ jobs:
         run: |
           set -euo pipefail
           HOMEPAGE="https://github.com/${SOURCE_REPO}"
-          gh api repos/novr/homebrew-taps/dispatches \
-            --method POST \
-            --input - <<EOF
-          {
-            "event_type": "update-cask",
-            "client_payload": {
-              "cask": "${CASK}",
-              "version": "${VERSION}",
-              "sha256": "${SHA256}",
-              "desc": "${DESC}",
-              "homepage": "${HOMEPAGE}",
-              "source_repo": "${SOURCE_REPO}",
-              "app": "${APP}",
-              "asset": "${ASSET}",
-              "name": "${NAME}",
-              "minimum_macos": "${MINIMUM_MACOS}"
-            }
-          }
-          EOF
+          jq -n \
+            --arg cask "${CASK}" \
+            --arg version "${VERSION}" \
+            --arg sha256 "${SHA256}" \
+            --arg desc "${DESC}" \
+            --arg homepage "${HOMEPAGE}" \
+            --arg source_repo "${SOURCE_REPO}" \
+            --arg app "${APP}" \
+            --arg asset "${ASSET}" \
+            --arg name "${NAME}" \
+            --arg minimum_macos "${MINIMUM_MACOS}" \
+            '{
+              event_type: "update-cask",
+              client_payload: {
+                cask: $cask,
+                version: $version,
+                sha256: $sha256,
+                desc: $desc,
+                homepage: $homepage,
+                source_repo: $source_repo,
+                app: $app,
+                asset: $asset,
+                name: $name,
+                minimum_macos: $minimum_macos
+              }
+            }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -

@@ -16,6 +16,8 @@ novr org 配下の macOS アプリ repo から署名・公証済み ZIP を GitH
 4. `v*` tag を push する
 5. `brew tap novr/taps && brew install --cask <cask>` で確認する
 
+初回リリースでは `Casks/<cask>.rb` が未作成のため、`update-cask` dispatch が upsert で Cask を追加する。
+
 ## Reusable workflow
 
 ```yaml
@@ -35,7 +37,9 @@ dispatch-cask:
     NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
 ```
 
-`source_repo` と `homepage` は reusable 側で呼び出し元 repo から自動導出する。
+`source_repo` と `homepage` は reusable 側で呼び出し元 repo から自動導出する。本番では `source_repo` を渡さない。
+
+ピン留めは commit SHA または tag を推奨する（`@main` は開発時のみ）。
 
 ## Inputs
 
@@ -44,12 +48,44 @@ dispatch-cask:
 | `cask` | tap 上の Cask 名（`Casks/<cask>.rb`） |
 | `version` | セマンティックバージョン（`v` なし） |
 | `sha256` | release asset の SHA-256 |
-| `desc` | `brew info --cask` に出る一行説明 |
+| `desc` | `brew info --cask` に出る一行説明（初回 upsert 時も必須） |
 | `app` | ZIP 内の `.app` 名 |
 | `asset` | release asset のファイル名 |
 | `name` | Cask の表示名（省略時は cask 名から生成） |
 | `minimum_macos` | 省略時 `sonoma` |
 
-## 既存例
+## アセット命名
 
-- [nyap](https://github.com/novr/homebrew-taps/blob/main/Casks/nyap.rb) — [Nyap release](https://github.com/novr/Nyap/blob/main/.github/workflows/release.yml)
+```
+<AppName>-macOS.zip
+```
+
+リリース間で asset 名は固定する。Cask の `url` は初回作成時に埋め込まれ、以降の `update-cask` は `version` と `sha256` のみ更新する。
+
+## 参照
+
+- [Nyap](https://github.com/novr/Nyap) — 初回 Cask 追加予定の macOS アプリ repo
+- CLI Formula 向け手順: [new-tool.md](new-tool.md)
+
+## 緊急再実行（reusable 非経由）
+
+App token 取得後、payload を直接送る。
+
+```bash
+gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF
+{
+  "event_type": "update-cask",
+  "client_payload": {
+    "cask": "myapp",
+    "version": "1.0.0",
+    "sha256": "<sha256>",
+    "desc": "One-line description",
+    "homepage": "https://github.com/novr/myapp",
+    "source_repo": "novr/myapp",
+    "app": "MyApp.app",
+    "asset": "MyApp-macOS.zip",
+    "minimum_macos": "sonoma"
+  }
+}
+EOF
+```

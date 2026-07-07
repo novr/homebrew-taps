@@ -106,6 +106,14 @@ jobs:
             }
           }
 
+          validate_minimum_macos() {
+            local value="${MINIMUM_MACOS:-sonoma}"
+            [[ "${value}" =~ ^[a-z0-9_]+$ ]] || {
+              echo "Invalid minimum_macos: ${value}"
+              exit 1
+            }
+          }
+
           test -n "${CASK}" || (echo "client_payload.cask is required" && exit 1)
           test -n "${VERSION}" || (echo "client_payload.version is required" && exit 1)
           test -n "${SOURCE_REPO}" || (echo "client_payload.source_repo is required" && exit 1)
@@ -117,6 +125,7 @@ jobs:
           validate_app_name
           validate_asset_name
           validate_sha256
+          validate_minimum_macos
 
           if [[ -n "${HOMEPAGE}" ]]; then
             validate_homepage
