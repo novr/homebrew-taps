@@ -6,7 +6,7 @@ class Rinter < Formula
 
   on_macos do
     url "https://github.com/novr/Rin/releases/download/v0.0.10/rinter_0.0.10_darwin.tar.gz"
-    sha256 "ecb926d86f58147aa45881e98a78430f8f05d374c0d9a53e42455f2ae94b6358"
+    sha256 "2a5c290a230fd7b3cb202e5ba035127f877e77a4f905704115df09b786004bcf"
   end
 
   def install
