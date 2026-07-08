@@ -1,6 +1,6 @@
 cask "nyap" do
-  version "0.0.1"
-  sha256 "1b6d6e7a6db116abd2571649a9bd3f6bffe69ee6575d14c9a2b8f31f96afe7ca"
+  version "0.0.2"
+  sha256 "46871adef4163167bad734f25a01281986eaa920ea231e0b245fc25dcfc95c05"
 
   url "https://github.com/novr/Nyap/releases/download/v#{version}/Nyap-macOS.zip",
       verified: "github.com/novr/Nyap/"
