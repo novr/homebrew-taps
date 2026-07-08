@@ -8,7 +8,7 @@ cask "nyap" do
   desc "Pomodoro timer with a cat overlay on breaks"
   homepage "https://github.com/novr/Nyap"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Nyap.app"
 end

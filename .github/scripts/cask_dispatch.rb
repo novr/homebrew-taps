@@ -133,7 +133,7 @@ def cask_template
       desc "<%= ruby_string(ENV.fetch("DESC")) %>"
       homepage "<%= ruby_string(ENV.fetch("HOMEPAGE")) %>"
 
-      depends_on macos: ">= :<%= ruby_string(ENV.fetch("MINIMUM_MACOS")) %>"
+      depends_on macos: :<%= ruby_string(ENV.fetch("MINIMUM_MACOS")) %>
 
       app "<%= ruby_string(ENV.fetch("APP")) %>"
     end
