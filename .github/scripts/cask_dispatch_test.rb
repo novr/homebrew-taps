@@ -41,6 +41,15 @@ def read_cask(path)
   File.read(path)
 end
 
+Dir.mktmpdir("cask-dispatch-test-") do |dir|
+  Dir.chdir(dir) do
+    cask_path = File.join(dir, "Casks", "test-app.rb")
+    assert!("add should create Casks directory") { run_script("add") }
+    assert!("Casks directory should exist") { File.directory?(File.join(dir, "Casks")) }
+    assert!("cask should be created without pre-existing Casks dir") { File.file?(cask_path) }
+  end
+end
+
 with_workspace do |_dir, cask_dir|
   cask_path = File.join(cask_dir, "test-app.rb")
 

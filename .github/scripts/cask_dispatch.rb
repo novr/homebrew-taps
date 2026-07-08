@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "erb"
+require "fileutils"
 
 CASK_NAME_PATTERN = /\A[a-z0-9-]+\z/
 VERSION_PATTERN = /\A[A-Za-z0-9._-]+\z/
@@ -116,6 +117,7 @@ def add_cask!
   path = cask_path
   return update_cask! if File.file?(path)
 
+  FileUtils.mkdir_p(File.dirname(path))
   File.write(path, ERB.new(cask_template, trim_mode: "-").result(binding))
 end
 
