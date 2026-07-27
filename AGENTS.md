@@ -12,7 +12,7 @@ novr org 配下ツール向け Homebrew tap の汎用基盤。エージェント
 | Producer | `dispatch-formula.yml` / `dispatch-cask.yml` — 呼び出し元 repo から `workflow_call`。App token 取得後 `repository_dispatch` を送る |
 | Consumer | `formula-dispatch.yml` / `cask-dispatch.yml` — dispatch を受け、検証・生成・commit・push |
 | 生成ロジック | `.github/scripts/formula_dispatch.rb` / `cask_dispatch.rb` |
-| テスト | `*_test.rb` / `dispatch_*_payload_test.sh` |
+| テスト | `ci.yml` — `*_test.rb` / `dispatch_*_payload_test.sh` / Formula・Cask 構文チェック |
 
 ### 呼び出し元 repo（bitrise-cli, Rin, Nyap 等）
 

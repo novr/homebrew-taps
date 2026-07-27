@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run dispatch tests
+        run: |
+          ruby .github/scripts/formula_dispatch_test.rb
+          ruby .github/scripts/cask_dispatch_test.rb
+          bash .github/scripts/dispatch_formula_payload_test.sh
+          bash .github/scripts/dispatch_cask_payload_test.sh
+
+      - name: Verify Formula and Cask syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for file in Formula/*.rb Casks/*.rb; do
+            ruby -c "${file}"
+          done

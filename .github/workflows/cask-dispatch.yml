@@ -5,24 +5,6 @@ on:
     types:
       - update-cask
       - add-cask
-  pull_request:
-    paths:
-      - ".github/scripts/cask_dispatch.rb"
-      - ".github/scripts/cask_dispatch_test.rb"
-      - ".github/scripts/dispatch_cask_payload_test.sh"
-      - ".github/workflows/cask-dispatch.yml"
-      - ".github/workflows/dispatch-cask.yml"
-      - "Casks/**"
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/scripts/cask_dispatch.rb"
-      - ".github/scripts/cask_dispatch_test.rb"
-      - ".github/scripts/dispatch_cask_payload_test.sh"
-      - ".github/workflows/cask-dispatch.yml"
-      - ".github/workflows/dispatch-cask.yml"
-      - "Casks/**"
 
 concurrency:
   group: cask-dispatch
@@ -32,20 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  test:
-    if: github.event_name != 'repository_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Run cask dispatch tests
-        run: |
-          ruby .github/scripts/cask_dispatch_test.rb
-          bash .github/scripts/dispatch_cask_payload_test.sh
-
   cask:
-    if: github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
