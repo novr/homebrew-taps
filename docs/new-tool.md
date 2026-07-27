@@ -27,7 +27,6 @@ dispatch-formula:
     version: ${{ needs.prepare.outputs.version }}
     url: ${{ needs.release-macos.outputs.url }}
     sha256: ${{ needs.release-macos.outputs.sha256 }}
-    desc: "One-line description"
     binary: mytool
     test_match: "expected --help substring"
   secrets:
@@ -47,7 +46,7 @@ dispatch-formula:
 | `version` | セマンティックバージョン（`v` なし） |
 | `url` | release asset の URL |
 | `sha256` | asset の SHA-256 |
-| `desc` | `brew info` に出る一行説明（初回 upsert 時も必須） |
+| `desc` | `brew info` に出る一行説明（初回 upsert / `add-formula` 時のみ必須。通常の version 更新では省略可） |
 | `binary` | tarball 内の実行ファイル名 |
 | `test_match` | `brew test` で `--help` 出力に含める文字列 |
 
@@ -121,7 +120,7 @@ end
 
 App token 取得後、payload を直接送る。
 
-`client_payload` のトップレベルは GitHub API 制限で最大 10 個。コアは `name`, `version`, `sha256`, `desc`, `source_repo`, `options` の 6 key（Cask と共通）。`homepage` と release `url` は送らない。
+`client_payload` のトップレベルは GitHub API 制限で最大 10 個。コアは `name`, `version`, `sha256`, `source_repo`, `options`（+ 初回のみ `desc`）。`homepage` と release `url` は送らない。
 
 ```bash
 gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF

@@ -69,7 +69,7 @@ Formula と Cask の workflow・スクリプト・payload は共有しない。
 | `name` | tap 上の名前（旧 `formula` / `cask`） |
 | `version` | セマンティックバージョン |
 | `sha256` | release asset の SHA-256 |
-| `desc` | 一行説明 |
+| `desc` | 一行説明（update では省略可。初回 upsert / `add-formula` 時のみ必須） |
 | `source_repo` | `novr/<repo>` |
 | `options` | 種別固有フィールド（下表） |
 

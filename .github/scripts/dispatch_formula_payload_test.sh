@@ -70,6 +70,33 @@ assert_top_level_count "service payload" "${service_payload}" 10
   exit 1
 }
 
+update_payload="$(jq -n \
+  --arg name "mytool" \
+  --arg version "1.0.0" \
+  --arg sha256 "e0d200a665351832dd11a065443d38b504969c77a8660ad4f49fc6405f7d7518" \
+  --arg source_repo "novr/mytool" \
+  --arg binary "mytool" \
+  --arg test_match "USAGE" \
+  --arg license "MIT" \
+  --arg desc "" \
+  '{
+    client_payload: (
+      {
+        name: $name,
+        version: $version,
+        sha256: $sha256,
+        source_repo: $source_repo,
+        options: {binary: $binary, test_match: $test_match, license: $license}
+      }
+      + (if $desc != "" then {desc: $desc} else {} end)
+    )
+  }')"
+assert_top_level_count "update payload" "${update_payload}" 10
+[[ "$(echo "${update_payload}" | jq -r '.client_payload | keys | sort | join(",")')" == "name,options,sha256,source_repo,version" ]] || {
+  echo "Assertion failed: update payload should omit desc"
+  exit 1
+}
+
 export NAME="mytool"
 export VERSION="1.0.0"
 export SOURCE_REPO="novr/mytool"

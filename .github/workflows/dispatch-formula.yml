@@ -17,8 +17,9 @@ on:
         required: true
         type: string
       desc:
-        required: true
+        required: false
         type: string
+        default: ""
       binary:
         required: true
         type: string
@@ -102,18 +103,20 @@ jobs:
             --arg service_config_source "${SERVICE_CONFIG_SOURCE}" \
             '{
               event_type: "update-formula",
-              client_payload: {
-                name: $name,
-                version: $version,
-                sha256: $sha256,
-                desc: $desc,
-                source_repo: $source_repo,
-                options: (
-                  {binary: $binary, test_match: $test_match, license: $license}
-                  + (if $url != "" then {url: $url} else {} end)
-                  + (if $service_config != "" then {service_config: $service_config} else {} end)
-                  + (if $service_run_args != "" then {service_run_args: $service_run_args} else {} end)
-                  + (if $service_config_source != "" then {service_config_source: $service_config_source} else {} end)
-                )
-              }
+              client_payload: (
+                {
+                  name: $name,
+                  version: $version,
+                  sha256: $sha256,
+                  source_repo: $source_repo,
+                  options: (
+                    {binary: $binary, test_match: $test_match, license: $license}
+                    + (if $url != "" then {url: $url} else {} end)
+                    + (if $service_config != "" then {service_config: $service_config} else {} end)
+                    + (if $service_run_args != "" then {service_run_args: $service_run_args} else {} end)
+                    + (if $service_config_source != "" then {service_config_source: $service_config_source} else {} end)
+                  )
+                }
+                + (if $desc != "" then {desc: $desc} else {} end)
+              )
             }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -
