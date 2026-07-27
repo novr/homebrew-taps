@@ -32,6 +32,18 @@ on:
         required: false
         type: string
         default: ""
+      service_config:
+        required: false
+        type: string
+        default: ""
+      service_run_args:
+        required: false
+        type: string
+        default: ""
+      service_config_source:
+        required: false
+        type: string
+        default: ""
     secrets:
       NOVRD_BOT_CLIENT_ID:
         required: true
@@ -66,26 +78,42 @@ jobs:
           TEST_MATCH: ${{ inputs.test_match }}
           LICENSE: ${{ inputs.license }}
           SOURCE_REPO: ${{ inputs.source_repo != '' && inputs.source_repo || github.repository }}
+          SERVICE_CONFIG: ${{ inputs.service_config }}
+          SERVICE_RUN_ARGS: ${{ inputs.service_run_args }}
+          SERVICE_CONFIG_SOURCE: ${{ inputs.service_config_source }}
         shell: bash
         run: |
           set -euo pipefail
           HOMEPAGE="https://github.com/${SOURCE_REPO}"
-          gh api repos/novr/homebrew-taps/dispatches \
-            --method POST \
-            --input - <<EOF
-          {
-            "event_type": "update-formula",
-            "client_payload": {
-              "formula": "${FORMULA}",
-              "version": "${VERSION}",
-              "url": "${URL}",
-              "sha256": "${SHA256}",
-              "desc": "${DESC}",
-              "homepage": "${HOMEPAGE}",
-              "source_repo": "${SOURCE_REPO}",
-              "binary": "${BINARY}",
-              "test_match": "${TEST_MATCH}",
-              "license": "${LICENSE}"
-            }
-          }
-          EOF
+          jq -n \
+            --arg formula "${FORMULA}" \
+            --arg version "${VERSION}" \
+            --arg url "${URL}" \
+            --arg sha256 "${SHA256}" \
+            --arg desc "${DESC}" \
+            --arg homepage "${HOMEPAGE}" \
+            --arg source_repo "${SOURCE_REPO}" \
+            --arg binary "${BINARY}" \
+            --arg test_match "${TEST_MATCH}" \
+            --arg license "${LICENSE}" \
+            --arg service_config "${SERVICE_CONFIG}" \
+            --arg service_run_args "${SERVICE_RUN_ARGS}" \
+            --arg service_config_source "${SERVICE_CONFIG_SOURCE}" \
+            '{
+              event_type: "update-formula",
+              client_payload: {
+                formula: $formula,
+                version: $version,
+                url: $url,
+                sha256: $sha256,
+                desc: $desc,
+                homepage: $homepage,
+                source_repo: $source_repo,
+                binary: $binary,
+                test_match: $test_match,
+                license: $license,
+                service_config: $service_config,
+                service_run_args: $service_run_args,
+                service_config_source: $service_config_source
+              }
+            }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -

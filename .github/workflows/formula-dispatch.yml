@@ -59,8 +59,65 @@ jobs:
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
           LICENSE: ${{ github.event.client_payload.license }}
           BINARY: ${{ github.event.client_payload.binary }}
+          SERVICE_CONFIG: ${{ github.event.client_payload.service_config }}
+          SERVICE_RUN_ARGS: ${{ github.event.client_payload.service_run_args }}
+          SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.service_config_source }}
         run: |
           set -euo pipefail
+
+          validate_service_config() {
+            local value="$1"
+            [[ -z "${value}" ]] && return 0
+            [[ "${value}" =~ ^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)+$ ]] || {
+              echo "Invalid service_config: ${value}"
+              exit 1
+            }
+            [[ "${value}" == *".."* ]] && {
+              echo "Invalid service_config: ${value}"
+              exit 1
+            }
+          }
+
+          validate_service_run_args() {
+            local value="$1"
+            [[ -z "${value}" ]] && return 0
+            local arg
+            IFS=',' read -ra args <<< "${value}"
+            for arg in "${args[@]}"; do
+              [[ -n "${arg}" ]] || {
+                echo "Invalid service_run_args: ${value}"
+                exit 1
+              }
+              [[ "${arg}" =~ ^-{0,2}[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] || {
+                echo "Invalid service_run_args: ${value}"
+                exit 1
+              }
+            done
+          }
+
+          validate_service_config_source() {
+            local value="$1"
+            [[ -z "${value}" ]] && return 0
+            [[ "${value}" =~ ^[a-z0-9][a-z0-9._/-]*$ ]] || {
+              echo "Invalid service_config_source: ${value}"
+              exit 1
+            }
+            [[ "${value}" == *".."* ]] && {
+              echo "Invalid service_config_source: ${value}"
+              exit 1
+            }
+          }
+
+          validate_brew_service_fields() {
+            local config="${SERVICE_CONFIG:-}"
+            local run_args="${SERVICE_RUN_ARGS:-}"
+            local source="${SERVICE_CONFIG_SOURCE:-}"
+
+            if [[ -n "${source}" && -z "${config}" ]]; then
+              echo "service_config is required when service_config_source is set"
+              exit 1
+            fi
+          }
 
           validate_formula_name() {
             [[ "${FORMULA}" =~ ^[a-z0-9-]+$ ]] || {
@@ -137,6 +194,16 @@ jobs:
           validate_release_url "${URL}" "url"
           validate_sha256 "${SHA256}" "sha256"
 
+          if [[ "${ACTION}" == "add-formula" ]] \
+            || [[ -n "${SERVICE_CONFIG:-}" ]] \
+            || [[ -n "${SERVICE_RUN_ARGS:-}" ]] \
+            || [[ -n "${SERVICE_CONFIG_SOURCE:-}" ]]; then
+            validate_service_config "${SERVICE_CONFIG:-}"
+            validate_service_run_args "${SERVICE_RUN_ARGS:-}"
+            validate_service_config_source "${SERVICE_CONFIG_SOURCE:-}"
+            validate_brew_service_fields
+          fi
+
           if [[ -n "${HOMEPAGE}" ]]; then
             validate_homepage
           elif [[ "${ACTION}" == "add-formula" ]]; then
@@ -162,6 +229,9 @@ jobs:
           LICENSE: ${{ github.event.client_payload.license }}
           BINARY: ${{ github.event.client_payload.binary }}
           TEST_MATCH: ${{ github.event.client_payload.test_match }}
+          SERVICE_CONFIG: ${{ github.event.client_payload.service_config }}
+          SERVICE_RUN_ARGS: ${{ github.event.client_payload.service_run_args }}
+          SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.service_config_source }}
         run: |
           set -euo pipefail
           case "${ACTION}" in
