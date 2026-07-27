@@ -13,8 +13,9 @@ on:
         required: true
         type: string
       desc:
-        required: true
+        required: false
         type: string
+        default: ""
       app:
         required: true
         type: string
@@ -82,16 +83,18 @@ jobs:
             --arg minimum_macos "${MINIMUM_MACOS}" \
             '{
               event_type: "update-cask",
-              client_payload: {
-                name: $name,
-                version: $version,
-                sha256: $sha256,
-                desc: $desc,
-                source_repo: $source_repo,
-                options: (
-                  {app: $app, asset: $asset}
-                  + (if $display_name != "" then {name: $display_name} else {} end)
-                  + (if $minimum_macos != "" then {minimum_macos: $minimum_macos} else {} end)
-                )
-              }
+              client_payload: (
+                {
+                  name: $name,
+                  version: $version,
+                  sha256: $sha256,
+                  source_repo: $source_repo,
+                  options: (
+                    {app: $app, asset: $asset}
+                    + (if $display_name != "" then {name: $display_name} else {} end)
+                    + (if $minimum_macos != "" then {minimum_macos: $minimum_macos} else {} end)
+                  )
+                }
+                + (if $desc != "" then {desc: $desc} else {} end)
+              )
             }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -

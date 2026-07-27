@@ -21,11 +21,13 @@ on:
         type: string
         default: ""
       binary:
-        required: true
+        required: false
         type: string
+        default: ""
       test_match:
-        required: true
+        required: false
         type: string
+        default: ""
       license:
         required: false
         type: string
@@ -86,6 +88,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          BINARY="${BINARY:-${FORMULA}}"
           # repository_dispatch client_payload allows at most 10 top-level properties.
           # Core keys are shared with Cask; type-specific fields live in options.
           jq -n \
@@ -110,7 +113,8 @@ jobs:
                   sha256: $sha256,
                   source_repo: $source_repo,
                   options: (
-                    {binary: $binary, test_match: $test_match, license: $license}
+                    {binary: $binary, license: $license}
+                    + (if $test_match != "" then {test_match: $test_match} else {} end)
                     + (if $url != "" then {url: $url} else {} end)
                     + (if $service_config != "" then {service_config: $service_config} else {} end)
                     + (if $service_run_args != "" then {service_run_args: $service_run_args} else {} end)

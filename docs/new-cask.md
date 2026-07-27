@@ -28,7 +28,6 @@ dispatch-cask:
     cask: nyap
     version: ${{ needs.prepare.outputs.version }}
     sha256: ${{ needs.release-macos.outputs.sha256 }}
-    desc: "Pomodoro timer with a cat overlay on breaks"
     app: Nyap.app
     asset: Nyap-macOS.zip
     name: Nyap
@@ -48,7 +47,7 @@ dispatch-cask:
 | `cask` | tap 上の Cask 名（`Casks/<cask>.rb`） |
 | `version` | セマンティックバージョン（`v` なし） |
 | `sha256` | release asset の SHA-256 |
-| `desc` | `brew info --cask` に出る一行説明（初回 upsert 時も必須） |
+| `desc` | 一行説明（初回 upsert / `add-cask` 時のみ。通常の version 更新では省略可） |
 | `app` | ZIP 内の `.app` 名 |
 | `asset` | release asset のファイル名 |
 | `name` | Cask の表示名（省略時は cask 名から生成） |
