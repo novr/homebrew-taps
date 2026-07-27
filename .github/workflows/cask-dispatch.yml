@@ -9,6 +9,7 @@ on:
     paths:
       - ".github/scripts/cask_dispatch.rb"
       - ".github/scripts/cask_dispatch_test.rb"
+      - ".github/scripts/dispatch_cask_payload_test.sh"
       - ".github/workflows/cask-dispatch.yml"
       - ".github/workflows/dispatch-cask.yml"
       - "Casks/**"
@@ -18,6 +19,7 @@ on:
     paths:
       - ".github/scripts/cask_dispatch.rb"
       - ".github/scripts/cask_dispatch_test.rb"
+      - ".github/scripts/dispatch_cask_payload_test.sh"
       - ".github/workflows/cask-dispatch.yml"
       - ".github/workflows/dispatch-cask.yml"
       - "Casks/**"
@@ -38,7 +40,9 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Run cask dispatch tests
-        run: ruby .github/scripts/cask_dispatch_test.rb
+        run: |
+          ruby .github/scripts/cask_dispatch_test.rb
+          bash .github/scripts/dispatch_cask_payload_test.sh
 
   cask:
     if: github.event_name == 'repository_dispatch'
@@ -50,18 +54,25 @@ jobs:
       - name: Validate payload
         env:
           ACTION: ${{ github.event.action }}
-          CASK: ${{ github.event.client_payload.cask }}
+          NAME: ${{ github.event.client_payload.name }}
+          CASK_LEGACY: ${{ github.event.client_payload.cask }}
           VERSION: ${{ github.event.client_payload.version }}
           SHA256: ${{ github.event.client_payload.sha256 }}
           DESC: ${{ github.event.client_payload.desc }}
-          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage || format('https://github.com/{0}', github.event.client_payload.source_repo) }}
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
-          APP: ${{ github.event.client_payload.app }}
-          ASSET: ${{ github.event.client_payload.asset }}
-          NAME: ${{ github.event.client_payload.name }}
-          MINIMUM_MACOS: ${{ github.event.client_payload.minimum_macos }}
+          OPTIONS_APP: ${{ github.event.client_payload.options.app }}
+          OPTIONS_ASSET: ${{ github.event.client_payload.options.asset }}
+          DISPLAY_NAME: ${{ github.event.client_payload.options.name || github.event.client_payload.install.name }}
+          OPTIONS_MINIMUM_MACOS: ${{ github.event.client_payload.options.minimum_macos }}
+          APP: ${{ github.event.client_payload.install.app || github.event.client_payload.app }}
+          ASSET: ${{ github.event.client_payload.install.asset || github.event.client_payload.asset }}
+          MINIMUM_MACOS: ${{ github.event.client_payload.install.minimum_macos || github.event.client_payload.minimum_macos }}
         run: |
           set -euo pipefail
+          # shellcheck source=.github/scripts/resolve_cask_payload.sh
+          source .github/scripts/resolve_cask_payload.sh
+          resolve_cask_payload
 
           validate_cask_name() {
             [[ "${CASK}" =~ ^[a-z0-9-]+$ ]] || {
@@ -121,7 +132,7 @@ jobs:
             }
           }
 
-          test -n "${CASK}" || (echo "client_payload.cask is required" && exit 1)
+          test -n "${CASK}" || (echo "client_payload.name or client_payload.cask is required" && exit 1)
           test -n "${VERSION}" || (echo "client_payload.version is required" && exit 1)
           test -n "${SOURCE_REPO}" || (echo "client_payload.source_repo is required" && exit 1)
           test -n "${SHA256}" || (echo "client_payload.sha256 is required" && exit 1)
@@ -135,34 +146,37 @@ jobs:
           validate_sha256
           validate_minimum_macos
 
-          if [[ -n "${HOMEPAGE}" ]]; then
+          if [[ -n "${HOMEPAGE:-}" ]]; then
             validate_homepage
-          elif [[ "${ACTION}" == "add-cask" ]]; then
-            echo "client_payload.homepage is required for add-cask"
-            exit 1
           fi
 
           if [[ "${ACTION}" == "add-cask" ]]; then
             test -n "${DESC}" || (echo "client_payload.desc is required for add-cask" && exit 1)
-            test -n "${HOMEPAGE}" || (echo "client_payload.homepage is required for add-cask" && exit 1)
+            test -n "${HOMEPAGE}" || (echo "client_payload.source_repo is required for add-cask" && exit 1)
           fi
 
       - name: Apply cask change
         env:
           ACTION: ${{ github.event.action }}
-          CASK: ${{ github.event.client_payload.cask }}
+          NAME: ${{ github.event.client_payload.name }}
+          CASK_LEGACY: ${{ github.event.client_payload.cask }}
           VERSION: ${{ github.event.client_payload.version }}
           SHA256: ${{ github.event.client_payload.sha256 }}
           DESC: ${{ github.event.client_payload.desc }}
-          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage || format('https://github.com/{0}', github.event.client_payload.source_repo) }}
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
-          APP: ${{ github.event.client_payload.app }}
-          ASSET: ${{ github.event.client_payload.asset }}
-          NAME: ${{ github.event.client_payload.name }}
-          MINIMUM_MACOS: ${{ github.event.client_payload.minimum_macos }}
+          OPTIONS_APP: ${{ github.event.client_payload.options.app }}
+          OPTIONS_ASSET: ${{ github.event.client_payload.options.asset }}
+          DISPLAY_NAME: ${{ github.event.client_payload.options.name || github.event.client_payload.install.name }}
+          OPTIONS_MINIMUM_MACOS: ${{ github.event.client_payload.options.minimum_macos }}
+          APP: ${{ github.event.client_payload.install.app || github.event.client_payload.app }}
+          ASSET: ${{ github.event.client_payload.install.asset || github.event.client_payload.asset }}
+          MINIMUM_MACOS: ${{ github.event.client_payload.install.minimum_macos || github.event.client_payload.minimum_macos }}
         run: |
           set -euo pipefail
-          export MINIMUM_MACOS="${MINIMUM_MACOS:-sonoma}"
+          # shellcheck source=.github/scripts/resolve_cask_payload.sh
+          source .github/scripts/resolve_cask_payload.sh
+          resolve_cask_payload
           case "${ACTION}" in
             update-cask)
               ruby .github/scripts/cask_dispatch.rb update
@@ -178,7 +192,7 @@ jobs:
 
       - name: Verify cask syntax
         env:
-          CASK: ${{ github.event.client_payload.cask }}
+          CASK: ${{ github.event.client_payload.name || github.event.client_payload.cask }}
         run: |
           set -euo pipefail
           ruby -c "Casks/${CASK}.rb"
@@ -186,7 +200,7 @@ jobs:
       - name: Commit and push
         env:
           ACTION: ${{ github.event.action }}
-          CASK: ${{ github.event.client_payload.cask }}
+          CASK: ${{ github.event.client_payload.name || github.event.client_payload.cask }}
           VERSION: ${{ github.event.client_payload.version }}
         run: |
           set -euo pipefail

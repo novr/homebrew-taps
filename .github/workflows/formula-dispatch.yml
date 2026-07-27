@@ -38,7 +38,9 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Run formula dispatch tests
-        run: ruby .github/scripts/formula_dispatch_test.rb
+        run: |
+          ruby .github/scripts/formula_dispatch_test.rb
+          bash .github/scripts/dispatch_formula_payload_test.sh
 
   formula:
     if: github.event_name == 'repository_dispatch'
@@ -50,20 +52,29 @@ jobs:
       - name: Validate payload
         env:
           ACTION: ${{ github.event.action }}
-          FORMULA: ${{ github.event.client_payload.formula }}
+          NAME: ${{ github.event.client_payload.name }}
+          FORMULA_LEGACY: ${{ github.event.client_payload.formula }}
           VERSION: ${{ github.event.client_payload.version }}
-          URL: ${{ github.event.client_payload.url }}
           SHA256: ${{ github.event.client_payload.sha256 }}
           DESC: ${{ github.event.client_payload.desc }}
-          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage || format('https://github.com/{0}', github.event.client_payload.source_repo) }}
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
-          LICENSE: ${{ github.event.client_payload.license }}
+          OPTIONS_BINARY: ${{ github.event.client_payload.options.binary }}
+          OPTIONS_TEST_MATCH: ${{ github.event.client_payload.options.test_match }}
+          OPTIONS_LICENSE: ${{ github.event.client_payload.options.license }}
+          OPTIONS_URL: ${{ github.event.client_payload.options.url }}
           BINARY: ${{ github.event.client_payload.binary }}
-          SERVICE_CONFIG: ${{ github.event.client_payload.service_config }}
-          SERVICE_RUN_ARGS: ${{ github.event.client_payload.service_run_args }}
-          SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.service_config_source }}
+          TEST_MATCH: ${{ github.event.client_payload.test_match }}
+          LICENSE: ${{ github.event.client_payload.license }}
+          URL: ${{ github.event.client_payload.url }}
+          SERVICE_CONFIG: ${{ github.event.client_payload.options.service_config || github.event.client_payload.service.config || github.event.client_payload.service_config }}
+          SERVICE_RUN_ARGS: ${{ github.event.client_payload.options.service_run_args || github.event.client_payload.service.run_args || github.event.client_payload.service_run_args }}
+          SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.options.service_config_source || github.event.client_payload.service.config_source || github.event.client_payload.service_config_source }}
         run: |
           set -euo pipefail
+          # shellcheck source=.github/scripts/resolve_formula_payload.sh
+          source .github/scripts/resolve_formula_payload.sh
+          resolve_formula_payload
 
           validate_service_config() {
             local value="$1"
@@ -182,10 +193,10 @@ jobs:
             }
           }
 
-          test -n "${FORMULA}" || (echo "client_payload.formula is required" && exit 1)
+          test -n "${FORMULA}" || (echo "client_payload.name or client_payload.formula is required" && exit 1)
           test -n "${VERSION}" || (echo "client_payload.version is required" && exit 1)
           test -n "${SOURCE_REPO}" || (echo "client_payload.source_repo is required" && exit 1)
-          test -n "${URL}" || (echo "client_payload.url is required" && exit 1)
+          test -n "${URL}" || (echo "client_payload.url or derivable binary is required" && exit 1)
           test -n "${SHA256}" || (echo "client_payload.sha256 is required" && exit 1)
           validate_formula_name
           validate_source_repo
@@ -204,36 +215,42 @@ jobs:
             validate_brew_service_fields
           fi
 
-          if [[ -n "${HOMEPAGE}" ]]; then
+          if [[ -n "${HOMEPAGE:-}" ]]; then
             validate_homepage
-          elif [[ "${ACTION}" == "add-formula" ]]; then
-            echo "client_payload.homepage is required for add-formula"
-            exit 1
           fi
 
           if [[ "${ACTION}" == "add-formula" ]]; then
             test -n "${DESC}" || (echo "client_payload.desc is required for add-formula" && exit 1)
-            test -n "${HOMEPAGE}" || (echo "client_payload.homepage is required for add-formula" && exit 1)
+            test -n "${HOMEPAGE}" || (echo "client_payload.source_repo is required for add-formula" && exit 1)
+            test -n "${TEST_MATCH}" || (echo "client_payload.options.test_match is required for add-formula" && exit 1)
           fi
 
       - name: Apply formula change
         env:
           ACTION: ${{ github.event.action }}
-          FORMULA: ${{ github.event.client_payload.formula }}
+          NAME: ${{ github.event.client_payload.name }}
+          FORMULA_LEGACY: ${{ github.event.client_payload.formula }}
           VERSION: ${{ github.event.client_payload.version }}
-          URL: ${{ github.event.client_payload.url }}
           SHA256: ${{ github.event.client_payload.sha256 }}
           DESC: ${{ github.event.client_payload.desc }}
-          HOMEPAGE: ${{ github.event.client_payload.homepage }}
+          HOMEPAGE: ${{ github.event.client_payload.homepage || format('https://github.com/{0}', github.event.client_payload.source_repo) }}
           SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
-          LICENSE: ${{ github.event.client_payload.license }}
+          OPTIONS_BINARY: ${{ github.event.client_payload.options.binary }}
+          OPTIONS_TEST_MATCH: ${{ github.event.client_payload.options.test_match }}
+          OPTIONS_LICENSE: ${{ github.event.client_payload.options.license }}
+          OPTIONS_URL: ${{ github.event.client_payload.options.url }}
           BINARY: ${{ github.event.client_payload.binary }}
           TEST_MATCH: ${{ github.event.client_payload.test_match }}
-          SERVICE_CONFIG: ${{ github.event.client_payload.service_config }}
-          SERVICE_RUN_ARGS: ${{ github.event.client_payload.service_run_args }}
-          SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.service_config_source }}
+          LICENSE: ${{ github.event.client_payload.license }}
+          URL: ${{ github.event.client_payload.url }}
+          SERVICE_CONFIG: ${{ github.event.client_payload.options.service_config || github.event.client_payload.service.config || github.event.client_payload.service_config }}
+          SERVICE_RUN_ARGS: ${{ github.event.client_payload.options.service_run_args || github.event.client_payload.service.run_args || github.event.client_payload.service_run_args }}
+          SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.options.service_config_source || github.event.client_payload.service.config_source || github.event.client_payload.service_config_source }}
         run: |
           set -euo pipefail
+          # shellcheck source=.github/scripts/resolve_formula_payload.sh
+          source .github/scripts/resolve_formula_payload.sh
+          resolve_formula_payload
           case "${ACTION}" in
             update-formula)
               ruby .github/scripts/formula_dispatch.rb update
@@ -249,7 +266,7 @@ jobs:
 
       - name: Verify formula syntax
         env:
-          FORMULA: ${{ github.event.client_payload.formula }}
+          FORMULA: ${{ github.event.client_payload.name || github.event.client_payload.formula }}
         run: |
           set -euo pipefail
           ruby -c "Formula/${FORMULA}.rb"
@@ -257,7 +274,7 @@ jobs:
       - name: Commit and push
         env:
           ACTION: ${{ github.event.action }}
-          FORMULA: ${{ github.event.client_payload.formula }}
+          FORMULA: ${{ github.event.client_payload.name || github.event.client_payload.formula }}
           VERSION: ${{ github.event.client_payload.version }}
         run: |
           set -euo pipefail

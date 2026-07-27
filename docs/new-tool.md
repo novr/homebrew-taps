@@ -65,6 +65,8 @@ dispatch-formula:
 
 初回作成時のみ `service` / 設定関連の `install` を生成する。update では既存ブロックを維持し、service 関連 input は検証・適用されない。
 
+`dispatch-formula` reusable workflow の input 名はそのまま。`client_payload` へ送る際に `options` オブジェクトへネストされる（手動 dispatch 時も同構造にする）。
+
 `service_run_args` はカンマ区切り（引数にカンマを含められない）。
 
 ### 例: 設定ファイルなしの常駐プロセス
@@ -119,20 +121,26 @@ end
 
 App token 取得後、payload を直接送る。
 
+`client_payload` のトップレベルは GitHub API 制限で最大 10 個。コアは `name`, `version`, `sha256`, `desc`, `source_repo`, `options` の 6 key（Cask と共通）。`homepage` と release `url` は送らない。
+
 ```bash
 gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF
 {
   "event_type": "update-formula",
   "client_payload": {
-    "formula": "mytool",
+    "name": "mytool",
     "version": "1.0.0",
-    "url": "https://github.com/novr/mytool/releases/download/v1.0.0/mytool_1.0.0_darwin.tar.gz",
     "sha256": "<sha256>",
     "desc": "One-line description",
-    "homepage": "https://github.com/novr/mytool",
     "source_repo": "novr/mytool",
-    "binary": "mytool",
-    "test_match": "expected substring"
+    "options": {
+      "binary": "mytool",
+      "test_match": "expected substring",
+      "license": "MIT",
+      "service_run_args": "run,--config",
+      "service_config": "mytool/config.yaml",
+      "service_config_source": "config.yaml.example"
+    }
   }
 }
 EOF
