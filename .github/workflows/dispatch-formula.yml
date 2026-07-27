@@ -10,14 +10,16 @@ on:
         required: true
         type: string
       url:
-        required: true
+        required: false
         type: string
+        default: ""
       sha256:
         required: true
         type: string
       desc:
-        required: true
+        required: false
         type: string
+        default: ""
       binary:
         required: true
         type: string
@@ -84,36 +86,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HOMEPAGE="https://github.com/${SOURCE_REPO}"
+          # repository_dispatch client_payload allows at most 10 top-level properties.
+          # Core keys are shared with Cask; type-specific fields live in options.
           jq -n \
-            --arg formula "${FORMULA}" \
+            --arg name "${FORMULA}" \
             --arg version "${VERSION}" \
-            --arg url "${URL}" \
             --arg sha256 "${SHA256}" \
             --arg desc "${DESC}" \
-            --arg homepage "${HOMEPAGE}" \
             --arg source_repo "${SOURCE_REPO}" \
             --arg binary "${BINARY}" \
             --arg test_match "${TEST_MATCH}" \
             --arg license "${LICENSE}" \
+            --arg url "${URL}" \
             --arg service_config "${SERVICE_CONFIG}" \
             --arg service_run_args "${SERVICE_RUN_ARGS}" \
             --arg service_config_source "${SERVICE_CONFIG_SOURCE}" \
             '{
               event_type: "update-formula",
-              client_payload: {
-                formula: $formula,
-                version: $version,
-                url: $url,
-                sha256: $sha256,
-                desc: $desc,
-                homepage: $homepage,
-                source_repo: $source_repo,
-                binary: $binary,
-                test_match: $test_match,
-                license: $license,
-                service_config: $service_config,
-                service_run_args: $service_run_args,
-                service_config_source: $service_config_source
-              }
+              client_payload: (
+                {
+                  name: $name,
+                  version: $version,
+                  sha256: $sha256,
+                  source_repo: $source_repo,
+                  options: (
+                    {binary: $binary, test_match: $test_match, license: $license}
+                    + (if $url != "" then {url: $url} else {} end)
+                    + (if $service_config != "" then {service_config: $service_config} else {} end)
+                    + (if $service_run_args != "" then {service_run_args: $service_run_args} else {} end)
+                    + (if $service_config_source != "" then {service_config_source: $service_config_source} else {} end)
+                  )
+                }
+                + (if $desc != "" then {desc: $desc} else {} end)
+              )
             }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -

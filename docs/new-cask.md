@@ -71,13 +71,14 @@ dispatch-cask:
 
 App token 取得後、payload を直接送る（`jq` 推奨）。
 
+`client_payload` のトップレベルは GitHub API 制限で最大 10 個。コアは Formula と同じ 6 key。`homepage` は送らない。
+
 ```bash
 jq -n \
-  --arg cask myapp \
+  --arg name myapp \
   --arg version 1.0.0 \
   --arg sha256 "<sha256>" \
   --arg desc "One-line description" \
-  --arg homepage "https://github.com/novr/myapp" \
   --arg source_repo novr/myapp \
   --arg app "MyApp.app" \
   --arg asset "MyApp-macOS.zip" \
@@ -85,15 +86,16 @@ jq -n \
   '{
     event_type: "update-cask",
     client_payload: {
-      cask: $cask,
+      name: $name,
       version: $version,
       sha256: $sha256,
       desc: $desc,
-      homepage: $homepage,
       source_repo: $source_repo,
-      app: $app,
-      asset: $asset,
-      minimum_macos: $minimum_macos
+      options: {
+        app: $app,
+        asset: $asset,
+        minimum_macos: $minimum_macos
+      }
     }
   }' | gh api repos/novr/homebrew-taps/dispatches --method POST --input -
 ```

@@ -27,7 +27,6 @@ dispatch-formula:
     version: ${{ needs.prepare.outputs.version }}
     url: ${{ needs.release-macos.outputs.url }}
     sha256: ${{ needs.release-macos.outputs.sha256 }}
-    desc: "One-line description"
     binary: mytool
     test_match: "expected --help substring"
   secrets:
@@ -47,7 +46,7 @@ dispatch-formula:
 | `version` | セマンティックバージョン（`v` なし） |
 | `url` | release asset の URL |
 | `sha256` | asset の SHA-256 |
-| `desc` | `brew info` に出る一行説明（初回 upsert 時も必須） |
+| `desc` | `brew info` に出る一行説明（初回 upsert / `add-formula` 時のみ必須。通常の version 更新では省略可） |
 | `binary` | tarball 内の実行ファイル名 |
 | `test_match` | `brew test` で `--help` 出力に含める文字列 |
 
@@ -64,6 +63,8 @@ dispatch-formula:
 | `service_config_source` | tarball 内の設定テンプレパス。`service_config` と併用し、初回インストール時に `etc/` へコピー（既存ファイルは上書きしない） |
 
 初回作成時のみ `service` / 設定関連の `install` を生成する。update では既存ブロックを維持し、service 関連 input は検証・適用されない。
+
+`dispatch-formula` reusable workflow の input 名はそのまま。`client_payload` へ送る際に `options` オブジェクトへネストされる（手動 dispatch 時も同構造にする）。
 
 `service_run_args` はカンマ区切り（引数にカンマを含められない）。
 
@@ -119,20 +120,26 @@ end
 
 App token 取得後、payload を直接送る。
 
+`client_payload` のトップレベルは GitHub API 制限で最大 10 個。コアは `name`, `version`, `sha256`, `source_repo`, `options`（+ 初回のみ `desc`）。`homepage` と release `url` は送らない。
+
 ```bash
 gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF
 {
   "event_type": "update-formula",
   "client_payload": {
-    "formula": "mytool",
+    "name": "mytool",
     "version": "1.0.0",
-    "url": "https://github.com/novr/mytool/releases/download/v1.0.0/mytool_1.0.0_darwin.tar.gz",
     "sha256": "<sha256>",
     "desc": "One-line description",
-    "homepage": "https://github.com/novr/mytool",
     "source_repo": "novr/mytool",
-    "binary": "mytool",
-    "test_match": "expected substring"
+    "options": {
+      "binary": "mytool",
+      "test_match": "expected substring",
+      "license": "MIT",
+      "service_run_args": "run,--config",
+      "service_config": "mytool/config.yaml",
+      "service_config_source": "config.yaml.example"
+    }
   }
 }
 EOF
