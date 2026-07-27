@@ -30,9 +30,9 @@ dispatch-formula:
     desc: "One-line description"
     binary: mytool
     test_match: "expected --help substring"
-    secrets:
-      NOVRD_BOT_CLIENT_ID: ${{ secrets.NOVRD_BOT_CLIENT_ID }}
-      NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
+  secrets:
+    NOVRD_BOT_CLIENT_ID: ${{ secrets.NOVRD_BOT_CLIENT_ID }}
+    NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
 ```
 
 `source_repo` と `homepage` は reusable 側で呼び出し元 repo から自動導出する。本番では渡さない。
@@ -52,6 +52,55 @@ dispatch-formula:
 | `test_match` | `brew test` で `--help` 出力に含める文字列 |
 
 `formula` と `binary` が異なる例: [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb)（repo は Rin、binary は `rinter`）。
+
+## brew services（省略可）
+
+常駐プロセス向けの Formula だけ、次の input を追加する。いずれも独立しており、ツールの CLI 契約に合わせて組み合わせる。
+
+| Input | 意味 |
+|---|---|
+| `service_run_args` | `service` ブロックの `run` 引数（カンマ区切り）。指定時のみ `brew services` ブロックを生成 |
+| `service_config` | `etc/` 配下の設定ファイルパス。`service_run_args` と併用時は `run` 配列末尾に `etc/"..."` を付与 |
+| `service_config_source` | tarball 内の設定テンプレパス。`service_config` と併用し、初回インストール時に `etc/` へコピー（既存ファイルは上書きしない） |
+
+初回作成時のみ `service` / 設定関連の `install` を生成する。update では既存ブロックを維持し、service 関連 input は検証・適用されない。
+
+`service_run_args` はカンマ区切り（引数にカンマを含められない）。
+
+### 例: 設定ファイルなしの常駐プロセス
+
+```yaml
+service_run_args: start
+```
+
+生成される `run`:
+
+```ruby
+run [opt_bin/"mytool", "start"]
+```
+
+### 例: 設定ファイル付きの常駐プロセス
+
+```yaml
+service_run_args: run,--config
+service_config: mytool/config.yaml
+service_config_source: config.yaml.example
+```
+
+生成される `install` / `service`:
+
+```ruby
+def install
+  bin.install "mytool"
+  etc.install "config.yaml.example" => "mytool/config.yaml" unless (etc/"mytool/config.yaml").exist?
+end
+
+service do
+  run [opt_bin/"mytool", "run", "--config", etc/"mytool/config.yaml"]
+  keep_alive true
+  ...
+end
+```
 
 ## アセット命名
 

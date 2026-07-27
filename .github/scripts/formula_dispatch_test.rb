@@ -162,6 +162,119 @@ with_workspace do |_dir, formula_dir|
   upserted = read_formula(formula_path)
   assert!("quoted desc should be escaped") { upserted.include?('desc "Say \\"hello\\"\\nworld"') }
   assert!("upserted formula syntax should be valid") { system("ruby", "-c", formula_path) }
+
+  FileUtils.rm_f(formula_path)
+  assert!("add with brew service should succeed") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "svc-cli",
+        "BINARY" => "svc-cli",
+        "SERVICE_RUN_ARGS" => "run,--config",
+        "SERVICE_CONFIG" => "svc-cli/config.yaml",
+        "SERVICE_CONFIG_SOURCE" => "config.yaml.example"
+      }
+    )
+  end
+
+  service_path = File.join(formula_dir, "svc-cli.rb")
+  service_content = read_formula(service_path)
+  assert!("service block should be present") { service_content.include?("service do") }
+  assert!("service should use configured run args") do
+    service_content.include?('run [opt_bin/"svc-cli", "run", "--config", etc/"svc-cli/config.yaml"]')
+  end
+  assert!("install should copy config template") do
+    service_content.include?('etc.install "config.yaml.example" => "svc-cli/config.yaml"')
+  end
+  assert!("service formula syntax should be valid") { system("ruby", "-c", service_path) }
+
+  assert!("update should preserve service block") do
+    run_script(
+      "update",
+      {
+        "FORMULA" => "svc-cli",
+        "BINARY" => "svc-cli",
+        "VERSION" => "1.0.1",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.1/svc-cli_1.0.1_darwin.tar.gz"
+      }
+    )
+  end
+
+  updated_service = read_formula(service_path)
+  assert!("service block should remain after update") { updated_service.include?("service do") }
+
+  FileUtils.rm_f(service_path)
+  assert!("add with service_run_args only should succeed") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "daemon-cli",
+        "BINARY" => "daemon-cli",
+        "SERVICE_RUN_ARGS" => "start"
+      }
+    )
+  end
+
+  daemon_path = File.join(formula_dir, "daemon-cli.rb")
+  daemon_content = read_formula(daemon_path)
+  assert!("daemon service should not reference etc") { !daemon_content.include?('etc/"') }
+  assert!("daemon service should use start arg") do
+    daemon_content.include?('run [opt_bin/"daemon-cli", "start"]')
+  end
+
+  assert!("service_config without service_run_args should install etc only") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "cfg-cli",
+        "BINARY" => "cfg-cli",
+        "SERVICE_CONFIG" => "cfg-cli/config.yaml",
+        "SERVICE_CONFIG_SOURCE" => "config.yaml.example"
+      }
+    )
+  end
+
+  cfg_path = File.join(formula_dir, "cfg-cli.rb")
+  cfg_content = read_formula(cfg_path)
+  assert!("config-only formula should not have service block") { !cfg_content.include?("service do") }
+  assert!("config-only formula should install config template") do
+    cfg_content.include?('etc.install "config.yaml.example" => "cfg-cli/config.yaml"')
+  end
+
+  assert!("invalid service_config should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "bad-svc",
+        "SERVICE_RUN_ARGS" => "run,--config",
+        "SERVICE_CONFIG" => "../etc/passwd"
+      }
+    )
+  end
+
+  assert!("invalid service_run_args should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "bad-svc",
+        "BINARY" => "bad-svc",
+        "SERVICE_RUN_ARGS" => "run,,start"
+      }
+    )
+  end
+
+  assert!("update should ignore invalid brew service fields") do
+    run_script(
+      "update",
+      {
+        "FORMULA" => "daemon-cli",
+        "BINARY" => "daemon-cli",
+        "VERSION" => "1.0.2",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.2/daemon-cli_1.0.2_darwin.tar.gz",
+        "SERVICE_RUN_ARGS" => "bad arg"
+      }
+    )
+  end
 end
 
 puts "formula_dispatch tests passed"

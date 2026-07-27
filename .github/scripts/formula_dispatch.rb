@@ -8,6 +8,9 @@ BINARY_NAME_PATTERN = /\A[a-z0-9_-]+\z/
 LICENSE_PATTERN = /\A[A-Za-z0-9.+()-]+\z/
 SHA256_PATTERN = /\A[a-f0-9]{64}\z/i
 SOURCE_REPO_PATTERN = /\Anovr\/[A-Za-z0-9._-]+\z/
+SERVICE_CONFIG_PATTERN = /\A[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+\z/
+SERVICE_RUN_ARG_PATTERN = /\A-{0,2}[a-zA-Z0-9][a-zA-Z0-9._-]*\z/
+SERVICE_CONFIG_SOURCE_PATTERN = %r{\A[a-z0-9][a-z0-9._/-]*\z}
 # dispatch 元を novr org に限定する（tap の信頼境界）
 NOVR_GITHUB_URL_PATTERN = %r{\Ahttps://github\.com/novr/}i
 MACOS_URL_SHA256_PATTERN = /(on_macos do\n\s+url )"[^"]+"\n(\s+sha256 )"[^"]+"/m
@@ -54,6 +57,43 @@ def validate_license!(value)
   abort("Invalid license: #{value}") unless value.match?(LICENSE_PATTERN)
 end
 
+def validate_service_config!(value)
+  return if value.nil? || value.empty?
+
+  abort("Invalid service_config: #{value}") unless value.match?(SERVICE_CONFIG_PATTERN)
+  abort("Invalid service_config: #{value}") if value.include?("..")
+end
+
+def validate_service_run_args!(value)
+  return if value.nil? || value.empty?
+
+  value.split(",").each do |arg|
+    abort("Invalid service_run_args: #{value}") if arg.empty?
+    abort("Invalid service_run_args: #{value}") unless arg.match?(SERVICE_RUN_ARG_PATTERN)
+  end
+end
+
+def validate_service_config_source!(value)
+  return if value.nil? || value.empty?
+
+  abort("Invalid service_config_source: #{value}") unless value.match?(SERVICE_CONFIG_SOURCE_PATTERN)
+  abort("Invalid service_config_source: #{value}") if value.include?("..")
+end
+
+def validate_brew_service_fields!
+  run_args = ENV["SERVICE_RUN_ARGS"]
+  config = ENV["SERVICE_CONFIG"]
+  source = ENV["SERVICE_CONFIG_SOURCE"]
+
+  validate_service_run_args!(run_args)
+  validate_service_config!(config)
+  validate_service_config_source!(source)
+
+  if source && !source.empty?
+    abort("service_config is required when service_config_source is set") if config.nil? || config.empty?
+  end
+end
+
 def source_repo
   ENV.fetch("SOURCE_REPO")
 end
@@ -85,10 +125,15 @@ def validate_urls_and_checksums!
   validate_sha256!(ENV.fetch("SHA256"))
 end
 
-def validate_metadata!
+def validate_core_metadata!
   validate_source_repo!
   validate_binary_name!(binary)
   validate_license!(license)
+end
+
+def validate_metadata!
+  validate_core_metadata!
+  validate_brew_service_fields!
 end
 
 def upsert_allowed?
@@ -121,11 +166,11 @@ def update_version(content)
     abort("Failed to find version in #{formula_path}")
   end
 
-  content.sub(/^\s*version\s+".*"$/, "  version \"#{ENV.fetch("VERSION")}\"")
+  content.sub(/^\s*version\s+".*"$/, "  version \"#{ruby_string(ENV.fetch("VERSION"))}\"")
 end
 
 def update_formula!
-  validate_metadata!
+  validate_core_metadata!
   validate_urls_and_checksums!
 
   path = formula_path
@@ -168,9 +213,9 @@ def formula_template
       end
 
       def install
-        bin.install "<%= ruby_string(binary) %>"
+<%= install_body %>
       end
-
+<%= service_block %>
       test do
         output = shell_output("\#{bin}/<%= ruby_string(binary) %> --help")
         assert_match "<%= ruby_string(test_match) %>", output
@@ -193,6 +238,67 @@ end
 
 def test_match
   ENV.fetch("TEST_MATCH", "USAGE: #{binary}")
+end
+
+def service_config
+  value = ENV["SERVICE_CONFIG"]
+  return nil if value.nil? || value.empty?
+
+  value
+end
+
+def service_config_source
+  value = ENV["SERVICE_CONFIG_SOURCE"]
+  return nil if value.nil? || value.empty?
+
+  value
+end
+
+def service_run_args
+  value = ENV["SERVICE_RUN_ARGS"]
+  return nil if value.nil? || value.empty?
+
+  value.split(",")
+end
+
+def brew_service?
+  !service_run_args.nil?
+end
+
+def install_body
+  lines = ["        bin.install \"#{ruby_string(binary)}\""]
+  if service_config_source
+    target = ruby_string(service_config)
+    source = ruby_string(service_config_source)
+    lines << "        etc.install \"#{source}\" => \"#{target}\" unless (etc/\"#{target}\").exist?"
+  elsif service_config
+    etc_dir = File.dirname(service_config)
+    lines << "        (etc/\"#{ruby_string(etc_dir)}\").mkpath" unless etc_dir == "."
+  end
+  lines.join("\n")
+end
+
+def service_run_expression
+  parts = ["opt_bin/\"#{ruby_string(binary)}\""]
+  service_run_args.each { |arg| parts << "\"#{ruby_string(arg)}\"" }
+  parts << "etc/\"#{ruby_string(service_config)}\"" if service_config
+  "[#{parts.join(', ')}]"
+end
+
+def service_block
+  return "" unless brew_service?
+
+  formula = ENV.fetch("FORMULA")
+  [
+    "",
+    "      service do",
+    "        run #{service_run_expression}",
+    "        keep_alive true",
+    "        log_path var/\"log/#{formula}.log\"",
+    "        error_log_path var/\"log/#{formula}.error.log\"",
+    "        environment_variables PATH: std_service_path_env",
+    "      end"
+  ].join("\n")
 end
 
 case ARGV.fetch(0)
