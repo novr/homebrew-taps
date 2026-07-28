@@ -59,7 +59,33 @@ dispatch-formula:
 | `service_config` | `etc/` 配下の設定ファイルパス。`service_run_args` と併用時は `run` 配列末尾に `etc/"..."` を付与 |
 | `service_config_source` | tarball 内の設定テンプレパス。`service_config` と併用し、初回インストール時に `etc/` へコピー（既存ファイルは上書きしない） |
 
-初回作成時のみ `service` / 設定関連の `install` を生成する。update では既存ブロックを維持し、service 関連 input は検証・適用されない。
+### シェル補完（省略可）
+
+CLI が補完スクリプトを出力できる場合、初回 `add-formula` 時に `install` へ `generate_completions_from_executable` を生成する。update では既存 `install` を維持する。
+
+| Input | 意味 |
+|---|---|
+| `completion_shells` | 生成対象シェル（カンマ区切り: `bash`, `zsh`, `fish`, `pwsh`）。他の `completion_*` を使うときは必須 |
+| `completion_args` | 実行ファイルへ渡す追加引数（カンマ区切り。`completion_format: cobra` 等を使う CLI では通常不要） |
+| `completion_format` | Homebrew の `shell_parameter_format`（`cobra`, `clap`, `click`, `arg`, `flag`, `typer`, `none`） |
+
+### 例: Cobra 形式の補完
+
+```yaml
+completion_shells: bash,zsh,fish
+completion_format: cobra
+```
+
+生成される `install`:
+
+```ruby
+def install
+  bin.install "mytool"
+  generate_completions_from_executable(bin/"mytool", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)
+end
+```
+
+初回作成時のみ `service` / 設定関連 / 補完関連の `install` を生成する。update では既存ブロックを維持し、service / completion 関連 input は検証・適用されない。
 
 `dispatch-formula` reusable workflow の input 名はそのまま。`client_payload` へ送る際に `options` オブジェクトへネストされる（手動 dispatch 時も同構造にする）。
 

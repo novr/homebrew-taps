@@ -70,6 +70,12 @@ jobs:
           SERVICE_CONFIG: ${{ github.event.client_payload.options.service_config || github.event.client_payload.service.config || github.event.client_payload.service_config }}
           SERVICE_RUN_ARGS: ${{ github.event.client_payload.options.service_run_args || github.event.client_payload.service.run_args || github.event.client_payload.service_run_args }}
           SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.options.service_config_source || github.event.client_payload.service.config_source || github.event.client_payload.service_config_source }}
+          OPTIONS_COMPLETION_SHELLS: ${{ github.event.client_payload.options.completion_shells }}
+          OPTIONS_COMPLETION_ARGS: ${{ github.event.client_payload.options.completion_args }}
+          OPTIONS_COMPLETION_FORMAT: ${{ github.event.client_payload.options.completion_format }}
+          COMPLETION_SHELLS: ${{ github.event.client_payload.completion_shells }}
+          COMPLETION_ARGS: ${{ github.event.client_payload.completion_args }}
+          COMPLETION_FORMAT: ${{ github.event.client_payload.completion_format }}
         run: |
           set -euo pipefail
           # shellcheck source=.github/scripts/resolve_formula_payload.sh
@@ -128,6 +134,53 @@ jobs:
               echo "service_config is required when service_config_source is set"
               exit 1
             fi
+          }
+
+          validate_completion_shells() {
+            local value="$1"
+            [[ -z "${value}" ]] && return 0
+            local shell
+            IFS=',' read -ra shells <<< "${value}"
+            for shell in "${shells[@]}"; do
+              shell="${shell#"${shell%%[![:space:]]*}"}"
+              shell="${shell%"${shell##*[![:space:]]}"}"
+              [[ -n "${shell}" ]] || {
+                echo "Invalid completion_shells: ${value}"
+                exit 1
+              }
+              [[ "${shell}" =~ ^(bash|zsh|fish|pwsh)$ ]] || {
+                echo "Invalid completion_shells: ${value}"
+                exit 1
+              }
+            done
+          }
+
+          validate_completion_args() {
+            local value="$1"
+            [[ -z "${value}" ]] && return 0
+            local arg
+            IFS=',' read -ra args <<< "${value}"
+            for arg in "${args[@]}"; do
+              arg="${arg#"${arg%%[![:space:]]*}"}"
+              arg="${arg%"${arg##*[![:space:]]}"}"
+              [[ -n "${arg}" ]] || {
+                echo "Invalid completion_args: ${value}"
+                exit 1
+              }
+              [[ "${arg}" =~ ^-{0,2}[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] || {
+                echo "Invalid completion_args: ${value}"
+                exit 1
+              }
+            done
+          }
+
+          validate_completion_format() {
+            local value="$1"
+            [[ -z "${value}" ]] && return 0
+            [[ "${value}" =~ ^(cobra|clap|click|arg|flag|typer|none)$ ]] || {
+              echo "Invalid completion_format: ${value}"
+              exit 1
+            }
           }
 
           validate_formula_name() {
@@ -215,6 +268,20 @@ jobs:
             validate_brew_service_fields
           fi
 
+          if [[ "${ACTION}" == "add-formula" ]] \
+            || [[ -n "${COMPLETION_SHELLS:-}" ]] \
+            || [[ -n "${COMPLETION_ARGS:-}" ]] \
+            || [[ -n "${COMPLETION_FORMAT:-}" ]]; then
+            validate_completion_shells "${COMPLETION_SHELLS:-}"
+            validate_completion_args "${COMPLETION_ARGS:-}"
+            validate_completion_format "${COMPLETION_FORMAT:-}"
+            if [[ -n "${COMPLETION_ARGS:-}" || -n "${COMPLETION_FORMAT:-}" ]] \
+              && [[ -z "${COMPLETION_SHELLS:-}" ]]; then
+              echo "completion_shells is required when completion_args or completion_format is set"
+              exit 1
+            fi
+          fi
+
           if [[ -n "${HOMEPAGE:-}" ]]; then
             validate_homepage
           fi
@@ -246,6 +313,12 @@ jobs:
           SERVICE_CONFIG: ${{ github.event.client_payload.options.service_config || github.event.client_payload.service.config || github.event.client_payload.service_config }}
           SERVICE_RUN_ARGS: ${{ github.event.client_payload.options.service_run_args || github.event.client_payload.service.run_args || github.event.client_payload.service_run_args }}
           SERVICE_CONFIG_SOURCE: ${{ github.event.client_payload.options.service_config_source || github.event.client_payload.service.config_source || github.event.client_payload.service_config_source }}
+          OPTIONS_COMPLETION_SHELLS: ${{ github.event.client_payload.options.completion_shells }}
+          OPTIONS_COMPLETION_ARGS: ${{ github.event.client_payload.options.completion_args }}
+          OPTIONS_COMPLETION_FORMAT: ${{ github.event.client_payload.options.completion_format }}
+          COMPLETION_SHELLS: ${{ github.event.client_payload.completion_shells }}
+          COMPLETION_ARGS: ${{ github.event.client_payload.completion_args }}
+          COMPLETION_FORMAT: ${{ github.event.client_payload.completion_format }}
         run: |
           set -euo pipefail
           # shellcheck source=.github/scripts/resolve_formula_payload.sh

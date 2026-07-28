@@ -75,7 +75,7 @@ Formula と Cask の workflow・スクリプト・payload は共有しない。
 
 `homepage` は送らない（consumer が `source_repo` から導出）。
 
-**Formula の `options`**: `binary`, `test_match`, `license`, `service_*`（任意）
+**Formula の `options`**: `binary`, `test_match`, `license`, `service_*`, `completion_*`（任意）
 
 release URL は送らない（既定は命名規則で導出）。非標準 asset 名だけ reusable の `url` input → `options.url` へ載せる。
 
@@ -90,7 +90,7 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 1. **workflow（bash）** — `formula-dispatch.yml` / `cask-dispatch.yml` の Validate ステップ
 2. **Ruby** — `*_dispatch.rb`
 
-変更時は両方を揃える。Formula の brew service 検証は **add 時または service フィールド非空時**（workflow）／**add 時のみ**（Ruby `validate_metadata!`）。**update 時の Ruby は core metadata のみ**。
+変更時は両方を揃える。Formula の brew service 検証は **add 時または service フィールド非空時**（workflow）／**add 時のみ**（Ruby `validate_metadata!`）。shell completion も同様（`completion_shells` 非空時または `add-formula`）。**update 時の Ruby は core metadata のみ**。
 
 ### 信頼境界
 
@@ -102,10 +102,11 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 ### Formula 生成
 
 - macOS universal binary 前提（`<binary>_<version>_darwin.tar.gz`）
-- **add**: `desc` 必須。brew service は任意（`service_run_args` がトリガー）
+- **add**: `desc` 必須。brew service / shell completion は任意（`service_run_args` / `completion_shells` がトリガー）
 - **update**: `install` / `service` は変更しない
 - `service_run_args` はカンマ区切り（引数にカンマ不可）
 - `service_config_source` 指定時は `service_config` 必須
+- `completion_args` / `completion_format` 指定時は `completion_shells` 必須
 
 ### 後方互換
 
