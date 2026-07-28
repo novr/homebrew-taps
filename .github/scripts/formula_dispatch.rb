@@ -11,6 +11,9 @@ SOURCE_REPO_PATTERN = /\Anovr\/[A-Za-z0-9._-]+\z/
 SERVICE_CONFIG_PATTERN = /\A[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+\z/
 SERVICE_RUN_ARG_PATTERN = /\A-{0,2}[a-zA-Z0-9][a-zA-Z0-9._-]*\z/
 SERVICE_CONFIG_SOURCE_PATTERN = %r{\A[a-z0-9][a-z0-9._/-]*\z}
+COMPLETION_SHELL_PATTERN = /\A(bash|zsh|fish|pwsh)\z/
+COMPLETION_FORMAT_PATTERN = /\A(cobra|clap|click|arg|flag|typer|none)\z/
+COMPLETION_ARG_PATTERN = SERVICE_RUN_ARG_PATTERN
 # dispatch 元を novr org に限定する（tap の信頼境界）
 NOVR_GITHUB_URL_PATTERN = %r{\Ahttps://github\.com/novr/}i
 MACOS_URL_SHA256_PATTERN = /(on_macos do\n\s+url )"[^"]+"\n(\s+sha256 )"[^"]+"/m
@@ -94,6 +97,50 @@ def validate_brew_service_fields!
   end
 end
 
+def validate_completion_shells!(value)
+  return if value.nil? || value.empty?
+
+  value.split(",").each do |shell|
+    shell = shell.strip
+    abort("Invalid completion_shells: #{value}") if shell.empty?
+    abort("Invalid completion_shells: #{value}") unless shell.match?(COMPLETION_SHELL_PATTERN)
+  end
+end
+
+def validate_completion_args!(value)
+  return if value.nil? || value.empty?
+
+  value.split(",").each do |arg|
+    arg = arg.strip
+    abort("Invalid completion_args: #{value}") if arg.empty?
+    abort("Invalid completion_args: #{value}") unless arg.match?(COMPLETION_ARG_PATTERN)
+  end
+end
+
+def validate_completion_format!(value)
+  return if value.nil? || value.empty?
+
+  abort("Invalid completion_format: #{value}") unless value.match?(COMPLETION_FORMAT_PATTERN)
+end
+
+def validate_completion_fields!
+  shells = ENV["COMPLETION_SHELLS"]
+  args = ENV["COMPLETION_ARGS"]
+  format = ENV["COMPLETION_FORMAT"]
+
+  validate_completion_shells!(shells)
+  validate_completion_args!(args)
+  validate_completion_format!(format)
+
+  has_args = args && !args.empty?
+  has_format = format && !format.empty?
+  has_shells = shells && !shells.empty?
+
+  return unless has_args || has_format
+
+  abort("completion_shells is required when completion_args or completion_format is set") unless has_shells
+end
+
 def source_repo
   ENV.fetch("SOURCE_REPO")
 end
@@ -134,6 +181,7 @@ end
 def validate_metadata!
   validate_core_metadata!
   validate_brew_service_fields!
+  validate_completion_fields!
 end
 
 def upsert_allowed?
@@ -261,6 +309,32 @@ def service_run_args
   value.split(",")
 end
 
+def completion_shells
+  value = ENV["COMPLETION_SHELLS"]
+  return nil if value.nil? || value.empty?
+
+  value.split(",").map(&:strip).reject(&:empty?)
+end
+
+def completion_args
+  value = ENV["COMPLETION_ARGS"]
+  return [] if value.nil? || value.empty?
+
+  value.split(",").map(&:strip).reject(&:empty?)
+end
+
+def completion_format
+  value = ENV["COMPLETION_FORMAT"]
+  return nil if value.nil? || value.empty?
+
+  value
+end
+
+def completion_shells?
+  shells = completion_shells
+  !shells.nil? && !shells.empty?
+end
+
 def brew_service?
   !service_run_args.nil?
 end
@@ -275,7 +349,21 @@ def install_body
     etc_dir = File.dirname(service_config)
     lines << "        (etc/\"#{ruby_string(etc_dir)}\").mkpath" unless etc_dir == "."
   end
+  completion_line = completion_install_line
+  lines << completion_line if completion_line
   lines.join("\n")
+end
+
+def completion_install_line
+  return nil unless completion_shells?
+
+  parts = ["bin/\"#{ruby_string(binary)}\""]
+  completion_args.each { |arg| parts << "\"#{ruby_string(arg)}\"" }
+
+  options = ["shells: [#{completion_shells.map { |shell| ":#{shell}" }.join(', ')}]"]
+  options << "shell_parameter_format: :#{completion_format}" if completion_format
+
+  "        generate_completions_from_executable(#{parts.join(', ')}, #{options.join(', ')})"
 end
 
 def service_run_expression

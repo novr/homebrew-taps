@@ -70,6 +70,35 @@ assert_top_level_count "service payload" "${service_payload}" 10
   exit 1
 }
 
+completion_payload="$(jq -n \
+  --arg name "mytool" \
+  --arg version "1.0.0" \
+  --arg sha256 "e0d200a665351832dd11a065443d38b504969c77a8660ad4f49fc6405f7d7518" \
+  --arg source_repo "novr/mytool" \
+  --arg binary "mytool" \
+  --arg license "MIT" \
+  --arg completion_shells "bash,zsh" \
+  --arg completion_format "cobra" \
+  '{
+    client_payload: {
+      name: $name,
+      version: $version,
+      sha256: $sha256,
+      source_repo: $source_repo,
+      options: {
+        binary: $binary,
+        license: $license,
+        completion_shells: $completion_shells,
+        completion_format: $completion_format
+      }
+    }
+  }')"
+assert_top_level_count "completion payload" "${completion_payload}" 10
+[[ "$(echo "${completion_payload}" | jq -r '.client_payload.options.completion_shells')" == "bash,zsh" ]] || {
+  echo "Assertion failed: options.completion_shells missing"
+  exit 1
+}
+
 update_payload="$(jq -n \
   --arg name "mytool" \
   --arg version "1.0.0" \
@@ -146,5 +175,13 @@ resolve_formula_payload
 [[ "${TEST_MATCH}" == "OPTIONS_MATCH" ]] || { echo "Assertion failed: options.test_match precedence"; exit 1; }
 [[ "${LICENSE}" == "Apache-2.0" ]] || { echo "Assertion failed: options.license precedence"; exit 1; }
 [[ "${URL}" == "https://example.com/custom.tar.gz" ]] || { echo "Assertion failed: options.url precedence"; exit 1; }
+
+export OPTIONS_COMPLETION_SHELLS="bash,zsh"
+export COMPLETION_SHELLS="flat"
+export OPTIONS_COMPLETION_FORMAT="cobra"
+export COMPLETION_FORMAT="clap"
+resolve_formula_payload
+[[ "${COMPLETION_SHELLS}" == "bash,zsh" ]] || { echo "Assertion failed: options.completion_shells precedence"; exit 1; }
+[[ "${COMPLETION_FORMAT}" == "cobra" ]] || { echo "Assertion failed: options.completion_format precedence"; exit 1; }
 
 echo "dispatch_formula_payload tests passed"

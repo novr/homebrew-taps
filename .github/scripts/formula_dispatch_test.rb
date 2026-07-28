@@ -275,6 +275,99 @@ with_workspace do |_dir, formula_dir|
       }
     )
   end
+
+  FileUtils.rm_f(formula_path)
+  assert!("add with shell completions should succeed") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "cmp-cli",
+        "BINARY" => "cmp-cli",
+        "COMPLETION_SHELLS" => "bash,zsh,fish",
+        "COMPLETION_FORMAT" => "cobra"
+      }
+    )
+  end
+
+  cmp_path = File.join(formula_dir, "cmp-cli.rb")
+  cmp_content = read_formula(cmp_path)
+  assert!("completion install line should be present") do
+    cmp_content.include?('generate_completions_from_executable(bin/"cmp-cli", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)')
+  end
+  assert!("completion formula syntax should be valid") { system("ruby", "-c", cmp_path) }
+
+  assert!("add with custom completion args should succeed") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "statoo-cli",
+        "BINARY" => "statoo-cli",
+        "COMPLETION_SHELLS" => "bash",
+        "COMPLETION_ARGS" => "bash-completion,completions"
+      }
+    )
+  end
+
+  statoo_path = File.join(formula_dir, "statoo-cli.rb")
+  statoo_content = read_formula(statoo_path)
+  assert!("custom completion args should be emitted") do
+    statoo_content.include?('generate_completions_from_executable(bin/"statoo-cli", "bash-completion", "completions", shells: [:bash])')
+  end
+
+  assert!("invalid completion_shells should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "bad-cmp",
+        "COMPLETION_SHELLS" => "bash,invalid"
+      }
+    )
+  end
+
+  assert!("completion_format without completion_shells should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "bad-cmp",
+        "COMPLETION_FORMAT" => "cobra"
+      }
+    )
+  end
+
+  assert!("completion shells with spaces should succeed") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "spaced-cmp",
+        "BINARY" => "spaced-cmp",
+        "COMPLETION_SHELLS" => "bash, zsh"
+      }
+    )
+  end
+
+  spaced_path = File.join(formula_dir, "spaced-cmp.rb")
+  spaced_content = read_formula(spaced_path)
+  assert!("spaced completion shells should be normalized") do
+    spaced_content.include?("shells: [:bash, :zsh]")
+  end
+
+  assert!("update should ignore invalid completion fields") do
+    run_script(
+      "update",
+      {
+        "FORMULA" => "cmp-cli",
+        "BINARY" => "cmp-cli",
+        "VERSION" => "1.0.1",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.1/cmp-cli_1.0.1_darwin.tar.gz",
+        "COMPLETION_SHELLS" => "bad"
+      }
+    )
+  end
+
+  updated_cmp = read_formula(cmp_path)
+  assert!("completion install line should remain after update") do
+    updated_cmp.include?("generate_completions_from_executable")
+  end
 end
 
 puts "formula_dispatch tests passed"

@@ -48,6 +48,18 @@ on:
         required: false
         type: string
         default: ""
+      completion_shells:
+        required: false
+        type: string
+        default: ""
+      completion_args:
+        required: false
+        type: string
+        default: ""
+      completion_format:
+        required: false
+        type: string
+        default: ""
     secrets:
       NOVRD_BOT_CLIENT_ID:
         required: true
@@ -85,6 +97,9 @@ jobs:
           SERVICE_CONFIG: ${{ inputs.service_config }}
           SERVICE_RUN_ARGS: ${{ inputs.service_run_args }}
           SERVICE_CONFIG_SOURCE: ${{ inputs.service_config_source }}
+          COMPLETION_SHELLS: ${{ inputs.completion_shells }}
+          COMPLETION_ARGS: ${{ inputs.completion_args }}
+          COMPLETION_FORMAT: ${{ inputs.completion_format }}
         shell: bash
         run: |
           set -euo pipefail
@@ -104,6 +119,9 @@ jobs:
             --arg service_config "${SERVICE_CONFIG}" \
             --arg service_run_args "${SERVICE_RUN_ARGS}" \
             --arg service_config_source "${SERVICE_CONFIG_SOURCE}" \
+            --arg completion_shells "${COMPLETION_SHELLS}" \
+            --arg completion_args "${COMPLETION_ARGS}" \
+            --arg completion_format "${COMPLETION_FORMAT}" \
             '{
               event_type: "update-formula",
               client_payload: (
@@ -119,6 +137,9 @@ jobs:
                     + (if $service_config != "" then {service_config: $service_config} else {} end)
                     + (if $service_run_args != "" then {service_run_args: $service_run_args} else {} end)
                     + (if $service_config_source != "" then {service_config_source: $service_config_source} else {} end)
+                    + (if $completion_shells != "" then {completion_shells: $completion_shells} else {} end)
+                    + (if $completion_args != "" then {completion_args: $completion_args} else {} end)
+                    + (if $completion_format != "" then {completion_format: $completion_format} else {} end)
                   )
                 }
                 + (if $desc != "" then {desc: $desc} else {} end)
