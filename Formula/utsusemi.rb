@@ -11,6 +11,7 @@
 
       def install
         bin.install "utsusemi"
+        generate_completions_from_executable(bin/"utsusemi", shell_parameter_format: :cobra)
       end
 
       service do
