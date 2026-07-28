@@ -25,10 +25,7 @@ dispatch-formula:
   with:
     formula: mytool
     version: ${{ needs.prepare.outputs.version }}
-    url: ${{ needs.release-macos.outputs.url }}
     sha256: ${{ needs.release-macos.outputs.sha256 }}
-    binary: mytool
-    test_match: "expected --help substring"
   secrets:
     NOVRD_BOT_CLIENT_ID: ${{ secrets.NOVRD_BOT_CLIENT_ID }}
     NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
@@ -44,11 +41,11 @@ dispatch-formula:
 |---|---|
 | `formula` | tap 上の Formula 名（`Formula/<formula>.rb`） |
 | `version` | セマンティックバージョン（`v` なし） |
-| `url` | release asset の URL |
+| `url` | 非標準 asset 名のときのみ（省略時は `<binary>_<version>_darwin.tar.gz` を導出） |
 | `sha256` | asset の SHA-256 |
-| `desc` | `brew info` に出る一行説明（初回 upsert / `add-formula` 時のみ必須。通常の version 更新では省略可） |
-| `binary` | tarball 内の実行ファイル名 |
-| `test_match` | `brew test` で `--help` 出力に含める文字列 |
+| `desc` | 一行説明（初回 upsert / `add-formula` 時のみ。通常の version 更新では省略可） |
+| `binary` | tarball 内の実行ファイル名（`formula` と同じなら省略可） |
+| `test_match` | `brew test` 用文字列（初回 upsert / `add-formula` 時のみ。通常の version 更新では省略可） |
 
 `formula` と `binary` が異なる例: [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb)（repo は Rin、binary は `rinter`）。
 
