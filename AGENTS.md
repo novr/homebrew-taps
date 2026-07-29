@@ -117,6 +117,7 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 ### 運用
 
 - reusable workflow は **`@<commit-sha>`** でピン（`@main` は開発時のみ）
+- **初回 Formula 作成は `gh api`**（`desc` / `test_match` / `service_*` / `completion_*`）。**2回目以降は reusable 最小**（`formula`, `version`, `sha256`）
 - consumer workflow は `concurrency` で直列化
 
 ## 変更時のチェックリスト
