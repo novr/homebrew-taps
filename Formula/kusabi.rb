@@ -10,7 +10,9 @@
       end
 
       def install
-        bin.install "kusabi", "ksb", "git-kusabi"
+        bin.install "kusabi"
+        bin.install_symlink "kusabi" => "ksb"
+        bin.install_symlink "kusabi" => "git-kusabi"
         generate_completions_from_executable(bin/"kusabi", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)
       end
 
