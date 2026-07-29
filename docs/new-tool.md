@@ -8,15 +8,70 @@ novr org 配下の CLI repo から universal macOS リリースを出し、[home
 - org の Settings → Actions → General で、呼び出し元 repo から `novr/homebrew-taps` の reusable workflow へアクセス可能
 - macOS リリースは arm64 + x86_64 の universal binary（単一 `darwin.tar.gz`）
 
-## 手順
+## 運用の流れ（推奨）
 
-1. release workflow に universal ビルドと release asset アップロードを用意する
-2. `release-macos`（等）の job outputs に `url` と `sha256` を載せる
-3. 別 job `dispatch-formula` で reusable workflow を呼ぶ（build job と分離する）
-4. `v*` tag を push する
-5. `brew tap novr/taps && brew install <formula>` で確認する
+**初回だけ `gh api`、2回目以降は reusable workflow を最小 `with:` で回す。** release workflow に初回専用 job を足す必要はない。
 
-## Reusable workflow
+| タイミング | 方法 | 渡すもの |
+|---|---|---|
+| 初回リリース（1回） | `gh api` で `repository_dispatch` | `desc`, `test_match`, `service_*`, `completion_*` など Formula 定義に必要なもの |
+| 2回目以降 | reusable `dispatch-formula` | `formula`, `version`, `sha256` のみ |
+
+`install` / `service` / 補完は初回作成時だけ tap 側に書き込まれる。update では version + url/sha256 だけ更新され、既存ブロックは維持される。
+
+### 1. 初回リリース（手動・1回）
+
+1. ツール repo で release workflow を用意し、`v*` tag を push して macOS asset を公開する
+2. release asset の `sha256` を用意する（例: `shasum -a 256 mytool_1.0.0_darwin.tar.gz`）
+3. App token を取得し、`gh api` で tap に dispatch する（下記テンプレ）
+4. [homebrew-taps](https://github.com/novr/homebrew-taps) の Actions で `formula-dispatch` が成功し、`Formula/<formula>.rb` ができていることを確認する
+5. `brew tap novr/taps && brew install <formula>` でインストール確認
+6. ツール repo の release workflow に **最小の reusable 呼び出し**を追加する（下記）。以降のリリースは tag push だけで tap が更新される
+
+App token 取得例（ローカル or CI で一度だけ）:
+
+```bash
+gh auth token   # 手元で PAT を使う場合
+# または actions/create-github-app-token で NOVRD_BOT_* から取得
+```
+
+初回 dispatch テンプレ（`service_*` / `completion_*` は不要なら `options` から削除）:
+
+```bash
+gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF
+{
+  "event_type": "update-formula",
+  "client_payload": {
+    "name": "mytool",
+    "version": "1.0.0",
+    "sha256": "<sha256>",
+    "desc": "One-line description",
+    "source_repo": "novr/mytool",
+    "options": {
+      "binary": "mytool",
+      "test_match": "expected --help substring",
+      "license": "MIT"
+    }
+  }
+}
+EOF
+```
+
+`client_payload` のトップレベルは最大 10 key。種別固有フィールドは `options` に入れる。`homepage` と release `url` は送らない（consumer が導出）。
+
+Cobra 補完・brew services が必要なら、初回 `options` にだけ足す:
+
+```json
+"completion_shells": "bash,zsh,fish",
+"completion_format": "cobra",
+"service_run_args": "run,--config",
+"service_config": "mytool/config.yaml",
+"service_config_source": "config.yaml.example"
+```
+
+### 2. 2回目以降（release workflow・自動）
+
+release workflow に reusable を **commit SHA ピン**で追加する（`@main` は開発時のみ）。
 
 ```yaml
 dispatch-formula:
@@ -31,21 +86,25 @@ dispatch-formula:
     NOVRD_BOT_KEY: ${{ secrets.NOVRD_BOT_KEY }}
 ```
 
-`source_repo` と `homepage` は reusable 側で呼び出し元 repo から自動導出する。本番では渡さない。
+`source_repo` は reusable 側で呼び出し元 repo から自動導出する。`desc` / `test_match` / `binary` は渡さない（既存 Formula を version + sha256 だけ更新）。
 
-ピン留めは commit SHA または tag を推奨する（`@main` は開発時のみ）。
+### 3. 再実行・トラブル時
 
-## Inputs
+初回 dispatch のやり直しや reusable が失敗したときも、同じ `gh api` テンプレで再送できる。Formula が既にあれば version + sha256 の更新になる。
+
+## Inputs（初回 `gh api` 用）
+
+reusable の `with:` 名と同じキーを、初回 dispatch では `client_payload.options` に載せる（`desc` だけトップレベル）。
 
 | Input | 意味 |
 |---|---|
-| `formula` | tap 上の Formula 名（`Formula/<formula>.rb`） |
+| `formula` | tap 上の Formula 名（`Formula/<formula>.rb`）。`client_payload` では `name` |
 | `version` | セマンティックバージョン（`v` なし） |
 | `url` | 非標準 asset 名のときのみ（省略時は `<binary>_<version>_darwin.tar.gz` を導出） |
 | `sha256` | asset の SHA-256 |
-| `desc` | 一行説明（初回 upsert / `add-formula` 時のみ。通常の version 更新では省略可） |
+| `desc` | 一行説明（**初回 `gh api` のみ必須**。reusable では渡さない） |
 | `binary` | tarball 内の実行ファイル名（`formula` と同じなら省略可） |
-| `test_match` | `brew test` 用文字列（初回 upsert / `add-formula` 時のみ。通常の version 更新では省略可） |
+| `test_match` | `brew test` 用文字列（**初回 `gh api` のみ必須**。reusable では渡さない） |
 
 `formula` と `binary` が異なる例: [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb)（repo は Rin、binary は `rinter`）。
 
@@ -61,7 +120,7 @@ dispatch-formula:
 
 ### シェル補完（省略可）
 
-CLI が補完スクリプトを出力できる場合、初回 `add-formula` 時に `install` へ `generate_completions_from_executable` を生成する。update では既存 `install` を維持する。
+CLI が補完スクリプトを出力できる場合、初回 `gh api` 時に `install` へ `generate_completions_from_executable` を生成する。update では既存 `install` を維持する。
 
 | Input | 意味 |
 |---|---|
@@ -85,9 +144,7 @@ def install
 end
 ```
 
-初回作成時のみ `service` / 設定関連 / 補完関連の `install` を生成する。update では既存ブロックを維持し、service / completion 関連 input は検証・適用されない。
-
-`dispatch-formula` reusable workflow の input 名はそのまま。`client_payload` へ送る際に `options` オブジェクトへネストされる（手動 dispatch 時も同構造にする）。
+初回 `gh api` の `options` にだけ指定する。reusable では渡さない。update では既存ブロックを維持する。
 
 `service_run_args` はカンマ区切り（引数にカンマを含められない）。
 
@@ -137,33 +194,4 @@ end
 ## 既存例
 
 - [br](https://github.com/novr/homebrew-taps/blob/main/Formula/br.rb) — [bitrise-cli release](https://github.com/novr/bitrise-cli/blob/main/.github/workflows/release.yml)
-- [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb) — [Rin release](https://github.com/novr/Rin/blob/main/.github/workflows/release.yml)
-
-## 緊急再実行（reusable 非経由）
-
-App token 取得後、payload を直接送る。
-
-`client_payload` のトップレベルは GitHub API 制限で最大 10 個。コアは `name`, `version`, `sha256`, `source_repo`, `options`（+ 初回のみ `desc`）。`homepage` と release `url` は送らない。
-
-```bash
-gh api repos/novr/homebrew-taps/dispatches --method POST --input - <<EOF
-{
-  "event_type": "update-formula",
-  "client_payload": {
-    "name": "mytool",
-    "version": "1.0.0",
-    "sha256": "<sha256>",
-    "desc": "One-line description",
-    "source_repo": "novr/mytool",
-    "options": {
-      "binary": "mytool",
-      "test_match": "expected substring",
-      "license": "MIT",
-      "service_run_args": "run,--config",
-      "service_config": "mytool/config.yaml",
-      "service_config_source": "config.yaml.example"
-    }
-  }
-}
-EOF
-```
+- [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb) — [Rin release](https://github.com/novr/Rin/blob/main/.github/workflows/release.yml)（2回目以降は reusable 最小）
