@@ -103,10 +103,14 @@ reusable の `with:` 名と同じキーを、初回 dispatch では `client_payl
 | `url` | 非標準 asset 名のときのみ（省略時は `<binary>_<version>_darwin.tar.gz` を導出） |
 | `sha256` | asset の SHA-256 |
 | `desc` | 一行説明（**初回 `gh api` のみ必須**。reusable では渡さない） |
-| `binary` | tarball 内の実行ファイル名（`formula` と同じなら省略可） |
+| `binary` | tarball 内の実行ファイル名（`formula` と同じなら省略可）。release asset 名・`test` コマンドの基準 |
+| `binaries` | `install` する実行ファイル名（カンマ区切り）。省略時は `binary` のみ |
+| `aliases` | `brew install` 用エイリアス（カンマ区切り）。`Aliases/<name>` を生成し、同一 Formula を指す |
 | `test_match` | `brew test` 用文字列（**初回 `gh api` のみ必須**。reusable では渡さない） |
 
 `formula` と `binary` が異なる例: [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb)（repo は Rin、binary は `rinter`）。
+
+複数バイナリ・エイリアス例: [kusabi](https://github.com/novr/homebrew-taps/blob/main/Formula/kusabi.rb)（`kusabi` / `ksb` / `git-kusabi` を同梱、`brew install ksb` も可）。
 
 ## brew services（省略可）
 
@@ -145,6 +149,32 @@ end
 ```
 
 初回 `gh api` の `options` にだけ指定する。reusable では渡さない。update では既存ブロックを維持する。
+
+### 例: 複数バイナリとエイリアス
+
+tarball に短縮名や `git-*` コマンドが同梱される場合:
+
+```json
+"binaries": "kusabi,ksb,git-kusabi",
+"aliases": "ksb,git-kusabi"
+```
+
+生成される `install`:
+
+```ruby
+def install
+  bin.install "kusabi", "ksb", "git-kusabi"
+  generate_completions_from_executable(bin/"kusabi", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)
+end
+```
+
+`Aliases/ksb` と `Aliases/git-kusabi` も作成され、`brew install ksb` / `brew install git-kusabi` で同一 Formula が入る。補完は主バイナリ（`binary`）基準。
+
+制約:
+
+- `binaries` 指定時は主 `binary` を必ず含める
+- `aliases` の各名前は `binaries` に含まれること（`brew install <alias>` 後に同名コマンドが PATH にあること）
+- 既存 Formula 名や他 Formula 向けエイリアスとは衝突不可
 
 `service_run_args` はカンマ区切り（引数にカンマを含められない）。
 

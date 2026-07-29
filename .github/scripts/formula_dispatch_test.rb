@@ -69,7 +69,7 @@ def read_formula(path)
   File.read(path)
 end
 
-with_workspace do |_dir, formula_dir|
+with_workspace do |dir, formula_dir|
   formula_path = File.join(formula_dir, "test-cli.rb")
 
   assert!("add should succeed") { run_script("add") }
@@ -367,6 +367,108 @@ with_workspace do |_dir, formula_dir|
   updated_cmp = read_formula(cmp_path)
   assert!("completion install line should remain after update") do
     updated_cmp.include?("generate_completions_from_executable")
+  end
+
+  FileUtils.rm_f(formula_path)
+  assert!("add with multiple binaries and aliases should succeed") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "multi-cli",
+        "BINARY" => "multi-cli",
+        "BINARIES" => "multi-cli,short-cli,git-multi",
+        "ALIASES" => "short-cli,git-multi",
+        "COMPLETION_SHELLS" => "bash",
+        "COMPLETION_FORMAT" => "cobra"
+      }
+    )
+  end
+
+  multi_path = File.join(formula_dir, "multi-cli.rb")
+  multi_content = read_formula(multi_path)
+  assert!("multiple binaries should be installed") do
+    multi_content.include?('bin.install "multi-cli", "short-cli", "git-multi"')
+  end
+  assert!("alias files should be created") do
+    File.file?(File.join(dir, "Aliases", "short-cli")) &&
+      File.read(File.join(dir, "Aliases", "short-cli")).strip == "multi-cli" &&
+      File.read(File.join(dir, "Aliases", "git-multi")).strip == "multi-cli"
+  end
+  assert!("multi formula syntax should be valid") { system("ruby", "-c", multi_path) }
+
+  assert!("invalid binaries should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "bad-bin",
+        "BINARIES" => "good,bad name"
+      }
+    )
+  end
+
+  assert!("alias matching formula should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "self-alias",
+        "BINARIES" => "self-alias,short-cli",
+        "ALIASES" => "self-alias"
+      }
+    )
+  end
+
+  assert!("binaries without primary binary should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "missing-primary",
+        "BINARY" => "missing-primary",
+        "BINARIES" => "short-cli"
+      }
+    )
+  end
+
+  assert!("alias not in binaries should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "alias-gap",
+        "BINARIES" => "alias-gap,short-cli",
+        "ALIASES" => "missing-cli"
+      }
+    )
+  end
+
+  assert!("add on existing formula should still write aliases") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "multi-cli",
+        "BINARY" => "multi-cli",
+        "VERSION" => "1.0.1",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.1/multi-cli_1.0.1_darwin.tar.gz",
+        "BINARIES" => "multi-cli,short-cli,git-multi",
+        "ALIASES" => "short-cli,git-multi"
+      }
+    )
+  end
+
+  assert!("alias files should remain after add on existing formula") do
+    File.file?(File.join(dir, "Aliases", "short-cli")) &&
+      File.read(File.join(dir, "Aliases", "short-cli")).strip == "multi-cli"
+  end
+
+  File.write(File.join(formula_dir, "conflict-cli.rb"), LEGACY_FORMULA.gsub("TestCli", "ConflictCli").gsub("test-cli", "conflict-cli"))
+  assert!("alias conflicting with existing formula should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "multi-cli",
+        "BINARY" => "multi-cli",
+        "BINARIES" => "multi-cli,conflict-cli",
+        "ALIASES" => "conflict-cli"
+      }
+    )
   end
 end
 

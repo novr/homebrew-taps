@@ -12,6 +12,7 @@ on:
       - ".github/workflows/dispatch-formula.yml"
       - ".github/workflows/dispatch-formula-smoke.yml"
       - "Formula/**"
+      - "Aliases/**"
   push:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - ".github/workflows/dispatch-formula.yml"
       - ".github/workflows/dispatch-formula-smoke.yml"
       - "Formula/**"
+      - "Aliases/**"
 
 concurrency:
   group: formula-dispatch
@@ -73,6 +75,8 @@ jobs:
           OPTIONS_COMPLETION_SHELLS: ${{ github.event.client_payload.options.completion_shells }}
           OPTIONS_COMPLETION_ARGS: ${{ github.event.client_payload.options.completion_args }}
           OPTIONS_COMPLETION_FORMAT: ${{ github.event.client_payload.options.completion_format }}
+          OPTIONS_BINARIES: ${{ github.event.client_payload.options.binaries }}
+          OPTIONS_ALIASES: ${{ github.event.client_payload.options.aliases }}
           COMPLETION_SHELLS: ${{ github.event.client_payload.completion_shells }}
           COMPLETION_ARGS: ${{ github.event.client_payload.completion_args }}
           COMPLETION_FORMAT: ${{ github.event.client_payload.completion_format }}
@@ -183,6 +187,99 @@ jobs:
             }
           }
 
+          validate_comma_separated_binary_names() {
+            local value="$1"
+            local label="$2"
+            [[ -z "${value}" ]] && return 0
+            local name
+            IFS=',' read -ra names <<< "${value}"
+            for name in "${names[@]}"; do
+              name="${name#"${name%%[![:space:]]*}"}"
+              name="${name%"${name##*[![:space:]]}"}"
+              [[ -n "${name}" ]] || {
+                echo "Invalid ${label}: ${value}"
+                exit 1
+              }
+              validate_binary_name "${name}"
+            done
+          }
+
+          validate_comma_separated_alias_names() {
+            local value="$1"
+            local label="$2"
+            [[ -z "${value}" ]] && return 0
+            local name
+            IFS=',' read -ra names <<< "${value}"
+            for name in "${names[@]}"; do
+              name="${name#"${name%%[![:space:]]*}"}"
+              name="${name%"${name##*[![:space:]]}"}"
+              [[ -n "${name}" ]] || {
+                echo "Invalid ${label}: ${value}"
+                exit 1
+              }
+              [[ "${name}" =~ ^[a-z0-9-]+$ ]] || {
+                echo "Invalid ${label}: ${value}"
+                exit 1
+              }
+            done
+          }
+
+          installed_binaries() {
+            if [[ -n "${BINARIES:-}" ]]; then
+              echo "${BINARIES}"
+              return 0
+            fi
+
+            echo "${BINARY:-${FORMULA}}"
+          }
+
+          validate_binaries_fields() {
+            [[ -n "${BINARIES:-}" ]] || return 0
+            local primary="${BINARY:-${FORMULA}}"
+            local installed
+            installed="$(installed_binaries)"
+            local found="false"
+            local name
+            IFS=',' read -ra names <<< "${installed}"
+            for name in "${names[@]}"; do
+              name="${name#"${name%%[![:space:]]*}"}"
+              name="${name%"${name##*[![:space:]]}"}"
+              [[ "${name}" == "${primary}" ]] && found="true"
+            done
+            [[ "${found}" == "true" ]] || {
+              echo "binaries must include primary binary: ${primary}"
+              exit 1
+            }
+          }
+
+          validate_alias_fields() {
+            [[ -n "${ALIASES:-}" ]] || return 0
+            local installed
+            installed="$(installed_binaries)"
+            local alias_name
+            IFS=',' read -ra aliases <<< "${ALIASES}"
+            for alias_name in "${aliases[@]}"; do
+              alias_name="${alias_name#"${alias_name%%[![:space:]]*}"}"
+              alias_name="${alias_name%"${alias_name##*[![:space:]]}"}"
+              [[ "${alias_name}" != "${FORMULA}" ]] || {
+                echo "alias cannot match formula name: ${alias_name}"
+                exit 1
+              }
+              local found="false"
+              local name
+              IFS=',' read -ra names <<< "${installed}"
+              for name in "${names[@]}"; do
+                name="${name#"${name%%[![:space:]]*}"}"
+                name="${name%"${name##*[![:space:]]}"}"
+                [[ "${name}" == "${alias_name}" ]] && found="true"
+              done
+              [[ "${found}" == "true" ]] || {
+                echo "alias must be listed in binaries: ${alias_name}"
+                exit 1
+              }
+            done
+          }
+
           validate_formula_name() {
             [[ "${FORMULA}" =~ ^[a-z0-9-]+$ ]] || {
               echo "Invalid formula name: ${FORMULA}"
@@ -282,6 +379,15 @@ jobs:
             fi
           fi
 
+          if [[ "${ACTION}" == "add-formula" ]] \
+            || [[ -n "${BINARIES:-}" ]] \
+            || [[ -n "${ALIASES:-}" ]]; then
+            validate_comma_separated_binary_names "${BINARIES:-}" "binaries"
+            validate_comma_separated_alias_names "${ALIASES:-}" "aliases"
+            validate_binaries_fields
+            validate_alias_fields
+          fi
+
           if [[ -n "${HOMEPAGE:-}" ]]; then
             validate_homepage
           fi
@@ -316,6 +422,8 @@ jobs:
           OPTIONS_COMPLETION_SHELLS: ${{ github.event.client_payload.options.completion_shells }}
           OPTIONS_COMPLETION_ARGS: ${{ github.event.client_payload.options.completion_args }}
           OPTIONS_COMPLETION_FORMAT: ${{ github.event.client_payload.options.completion_format }}
+          OPTIONS_BINARIES: ${{ github.event.client_payload.options.binaries }}
+          OPTIONS_ALIASES: ${{ github.event.client_payload.options.aliases }}
           COMPLETION_SHELLS: ${{ github.event.client_payload.completion_shells }}
           COMPLETION_ARGS: ${{ github.event.client_payload.completion_args }}
           COMPLETION_FORMAT: ${{ github.event.client_payload.completion_format }}
@@ -349,11 +457,30 @@ jobs:
           ACTION: ${{ github.event.action }}
           FORMULA: ${{ github.event.client_payload.name || github.event.client_payload.formula }}
           VERSION: ${{ github.event.client_payload.version }}
+          NAME: ${{ github.event.client_payload.name }}
+          FORMULA_LEGACY: ${{ github.event.client_payload.formula }}
+          OPTIONS_ALIASES: ${{ github.event.client_payload.options.aliases }}
+          ALIASES: ${{ github.event.client_payload.aliases }}
         run: |
           set -euo pipefail
+          # shellcheck source=.github/scripts/resolve_formula_payload.sh
+          source .github/scripts/resolve_formula_payload.sh
+          resolve_formula_payload
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "Formula/${FORMULA}.rb"
+
+          if [[ -n "${ALIASES:-}" ]]; then
+            alias_name=""
+            IFS=',' read -ra alias_names <<< "${ALIASES}"
+            for alias_name in "${alias_names[@]}"; do
+              alias_name="${alias_name#"${alias_name%%[![:space:]]*}"}"
+              alias_name="${alias_name%"${alias_name##*[![:space:]]}"}"
+              [[ -n "${alias_name}" ]] || continue
+              git add "Aliases/${alias_name}"
+            done
+          fi
 
           if git diff --cached --quiet; then
             echo "No changes detected. Skipping commit."

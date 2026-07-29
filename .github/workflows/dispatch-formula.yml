@@ -60,6 +60,14 @@ on:
         required: false
         type: string
         default: ""
+      binaries:
+        required: false
+        type: string
+        default: ""
+      aliases:
+        required: false
+        type: string
+        default: ""
     secrets:
       NOVRD_BOT_CLIENT_ID:
         required: true
@@ -100,6 +108,8 @@ jobs:
           COMPLETION_SHELLS: ${{ inputs.completion_shells }}
           COMPLETION_ARGS: ${{ inputs.completion_args }}
           COMPLETION_FORMAT: ${{ inputs.completion_format }}
+          BINARIES: ${{ inputs.binaries }}
+          ALIASES: ${{ inputs.aliases }}
         shell: bash
         run: |
           set -euo pipefail
@@ -122,6 +132,8 @@ jobs:
             --arg completion_shells "${COMPLETION_SHELLS}" \
             --arg completion_args "${COMPLETION_ARGS}" \
             --arg completion_format "${COMPLETION_FORMAT}" \
+            --arg binaries "${BINARIES}" \
+            --arg aliases "${ALIASES}" \
             '{
               event_type: "update-formula",
               client_payload: (
@@ -140,6 +152,8 @@ jobs:
                     + (if $completion_shells != "" then {completion_shells: $completion_shells} else {} end)
                     + (if $completion_args != "" then {completion_args: $completion_args} else {} end)
                     + (if $completion_format != "" then {completion_format: $completion_format} else {} end)
+                    + (if $binaries != "" then {binaries: $binaries} else {} end)
+                    + (if $aliases != "" then {aliases: $aliases} else {} end)
                   )
                 }
                 + (if $desc != "" then {desc: $desc} else {} end)

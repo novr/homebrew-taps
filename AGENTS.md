@@ -8,7 +8,7 @@ novr org 配下ツール向け Homebrew tap の汎用基盤。エージェント
 
 | 領域 | 内容 |
 |------|------|
-| 配布定義 | `Formula/`・`Casks/` の Ruby 定義を保持・更新 |
+| 配布定義 | `Formula/`・`Casks/`・`Aliases/` の Ruby 定義・エイリアスを保持・更新 |
 | Producer | `dispatch-formula.yml` / `dispatch-cask.yml` — 呼び出し元 repo から `workflow_call`。App token 取得後 `repository_dispatch` を送る |
 | Consumer | `formula-dispatch.yml` / `cask-dispatch.yml` — dispatch を受け、検証・生成・commit・push |
 | 生成ロジック | `.github/scripts/formula_dispatch.rb` / `cask_dispatch.rb` |
@@ -75,7 +75,7 @@ Formula と Cask の workflow・スクリプト・payload は共有しない。
 
 `homepage` は送らない（consumer が `source_repo` から導出）。
 
-**Formula の `options`**: `binary`, `test_match`, `license`, `service_*`, `completion_*`（任意）
+**Formula の `options`**: `binary`, `binaries`, `aliases`, `test_match`, `license`, `service_*`, `completion_*`（任意）
 
 release URL は送らない（既定は命名規則で導出）。非標準 asset 名だけ reusable の `url` input → `options.url` へ載せる。
 
@@ -90,7 +90,7 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 1. **workflow（bash）** — `formula-dispatch.yml` / `cask-dispatch.yml` の Validate ステップ
 2. **Ruby** — `*_dispatch.rb`
 
-変更時は両方を揃える。Formula の brew service 検証は **add 時または service フィールド非空時**（workflow）／**add 時のみ**（Ruby `validate_metadata!`）。shell completion も同様（`completion_shells` 非空時または `add-formula`）。**update 時の Ruby は core metadata のみ**。
+変更時は両方を揃える。Formula の brew service 検証は **add 時または service フィールド非空時**（workflow）／**add 時のみ**（Ruby `validate_metadata!`）。shell completion も同様（`completion_shells` 非空時または `add-formula`）。`binaries` / `aliases` も同様（非空時または `add-formula`）。**update 時の Ruby は core metadata のみ**。
 
 ### 信頼境界
 
@@ -102,11 +102,13 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 ### Formula 生成
 
 - macOS universal binary 前提（`<binary>_<version>_darwin.tar.gz`）
-- **add**: `desc` 必須。brew service / shell completion は任意（`service_run_args` / `completion_shells` がトリガー）
-- **update**: `install` / `service` は変更しない
+- **add**: `desc` 必須。brew service / shell completion / 複数バイナリ・エイリアスは任意（`service_run_args` / `completion_shells` / `binaries` / `aliases` がトリガー）
+- **update**: `install` / `service` / `Aliases/` は変更しない
 - `service_run_args` はカンマ区切り（引数にカンマ不可）
 - `service_config_source` 指定時は `service_config` 必須
 - `completion_args` / `completion_format` 指定時は `completion_shells` 必須
+- `binaries` 指定時は主 `binary` を必須含有
+- `aliases` の各名前は `binaries`（未指定時は `binary` のみ）に含まれること
 
 ### 後方互換
 

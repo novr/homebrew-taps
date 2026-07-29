@@ -180,8 +180,14 @@ export OPTIONS_COMPLETION_SHELLS="bash,zsh"
 export COMPLETION_SHELLS="flat"
 export OPTIONS_COMPLETION_FORMAT="cobra"
 export COMPLETION_FORMAT="clap"
+export OPTIONS_BINARIES="from-options,extra-cli"
+export BINARIES="flat-cli"
+export OPTIONS_ALIASES="extra-cli"
+export ALIASES="flat-alias"
 resolve_formula_payload
 [[ "${COMPLETION_SHELLS}" == "bash,zsh" ]] || { echo "Assertion failed: options.completion_shells precedence"; exit 1; }
 [[ "${COMPLETION_FORMAT}" == "cobra" ]] || { echo "Assertion failed: options.completion_format precedence"; exit 1; }
+[[ "${BINARIES}" == "from-options,extra-cli" ]] || { echo "Assertion failed: options.binaries precedence"; exit 1; }
+[[ "${ALIASES}" == "extra-cli" ]] || { echo "Assertion failed: options.aliases precedence"; exit 1; }
 
 echo "dispatch_formula_payload tests passed"

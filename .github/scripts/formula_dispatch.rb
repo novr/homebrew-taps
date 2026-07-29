@@ -2,9 +2,11 @@
 # frozen_string_literal: true
 
 require "erb"
+require "fileutils"
 
 FORMULA_NAME_PATTERN = /\A[a-z0-9-]+\z/
 BINARY_NAME_PATTERN = /\A[a-z0-9_-]+\z/
+ALIAS_NAME_PATTERN = FORMULA_NAME_PATTERN
 LICENSE_PATTERN = /\A[A-Za-z0-9.+()-]+\z/
 SHA256_PATTERN = /\A[a-f0-9]{64}\z/i
 SOURCE_REPO_PATTERN = /\Anovr\/[A-Za-z0-9._-]+\z/
@@ -54,6 +56,61 @@ end
 
 def validate_binary_name!(value)
   abort("Invalid binary name: #{value}") unless value.match?(BINARY_NAME_PATTERN)
+end
+
+def validate_alias_name!(value)
+  abort("Invalid alias name: #{value}") unless value.match?(ALIAS_NAME_PATTERN)
+end
+
+def validate_comma_separated_binary_names!(value, label)
+  return if value.nil? || value.empty?
+
+  value.split(",").each do |name|
+    name = name.strip
+    abort("Invalid #{label}: #{value}") if name.empty?
+    validate_binary_name!(name)
+  end
+end
+
+def validate_comma_separated_alias_names!(value, label)
+  return if value.nil? || value.empty?
+
+  value.split(",").each do |name|
+    name = name.strip
+    abort("Invalid #{label}: #{value}") if name.empty?
+    validate_alias_name!(name)
+  end
+end
+
+def validate_binaries_fields!
+  value = ENV["BINARIES"]
+  return if value.nil? || value.empty?
+
+  installed = binaries
+  abort("binaries must include primary binary: #{binary}") unless installed.include?(binary)
+
+  seen = {}
+  installed.each do |name|
+    abort("duplicate binary in binaries: #{name}") if seen[name]
+
+    seen[name] = true
+  end
+end
+
+def validate_alias_fields!
+  formula = ENV.fetch("FORMULA")
+  list = aliases
+  return if list.empty?
+
+  seen = {}
+  installed = binaries
+  list.each do |alias_name|
+    abort("alias cannot match formula name: #{alias_name}") if alias_name == formula
+    abort("duplicate alias: #{alias_name}") if seen[alias_name]
+
+    seen[alias_name] = true
+    abort("alias must be listed in binaries: #{alias_name}") unless installed.include?(alias_name)
+  end
 end
 
 def validate_license!(value)
@@ -182,6 +239,10 @@ def validate_metadata!
   validate_core_metadata!
   validate_brew_service_fields!
   validate_completion_fields!
+  validate_comma_separated_binary_names!(ENV["BINARIES"], "binaries")
+  validate_comma_separated_alias_names!(ENV["ALIASES"], "aliases")
+  validate_binaries_fields!
+  validate_alias_fields!
 end
 
 def upsert_allowed?
@@ -241,10 +302,13 @@ def add_formula!
   abort("client_payload.desc is required for add-formula") unless upsert_allowed?
 
   path = formula_path
-  # release 側が add-formula 固定でも既存 Formula を更新できるようにする
-  return update_formula! if File.file?(path)
+  if File.file?(path)
+    update_formula!
+  else
+    File.write(path, ERB.new(formula_template, trim_mode: "-").result(binding))
+  end
 
-  File.write(path, ERB.new(formula_template, trim_mode: "-").result(binding))
+  write_aliases! unless aliases.empty?
 end
 
 def formula_template
@@ -276,6 +340,48 @@ def binary
   value = ENV["BINARY"]
   value = ENV.fetch("FORMULA") if value.nil? || value.empty?
   value
+end
+
+def binaries
+  value = ENV["BINARIES"]
+  return [binary] if value.nil? || value.empty?
+
+  value.split(",").map(&:strip).reject(&:empty?)
+end
+
+def aliases
+  value = ENV["ALIASES"]
+  return [] if value.nil? || value.empty?
+
+  value.split(",").map(&:strip).reject(&:empty?)
+end
+
+def write_aliases!
+  formula = ENV.fetch("FORMULA")
+  list = aliases
+  return if list.empty?
+
+  aliases_dir = File.expand_path("Aliases", Dir.pwd)
+  FileUtils.mkdir_p(aliases_dir)
+
+  list.each do |alias_name|
+    validate_alias_name!(alias_name)
+
+    conflicting_formula = File.expand_path("Formula/#{alias_name}.rb", Dir.pwd)
+    if File.file?(conflicting_formula)
+      abort("alias conflicts with existing formula: #{alias_name}")
+    end
+
+    path = File.expand_path("Aliases/#{alias_name}", Dir.pwd)
+    abort("Invalid alias path: #{path}") unless path.start_with?("#{aliases_dir}/")
+
+    if File.file?(path)
+      existing = File.read(path).strip
+      abort("alias already points to #{existing}: #{alias_name}") if existing != formula
+    end
+
+    File.write(path, "#{formula}\n")
+  end
 end
 
 def license
@@ -340,7 +446,8 @@ def brew_service?
 end
 
 def install_body
-  lines = ["        bin.install \"#{ruby_string(binary)}\""]
+  names = binaries.map { |name| "\"#{ruby_string(name)}\"" }.join(", ")
+  lines = ["        bin.install #{names}"]
   if service_config_source
     target = ruby_string(service_config)
     source = ruby_string(service_config_source)

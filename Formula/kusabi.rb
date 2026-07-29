@@ -10,7 +10,7 @@
       end
 
       def install
-        bin.install "kusabi"
+        bin.install "kusabi", "ksb", "git-kusabi"
         generate_completions_from_executable(bin/"kusabi", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)
       end
 
