@@ -8,10 +8,4 @@ brew install <formula>
 brew install --cask <cask>
 ```
 
-## Formulae
-
-| Formula | 説明 |
-|---------|------|
-| `br` | Unofficial Bitrise CLI |
-| `rinter` | Rin policy checker |
-| `kawarimi-validate` | Kawarimi JSON validator |
+一覧は `Formula/` / `Casks/` を参照。
