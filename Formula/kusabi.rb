@@ -1,12 +1,12 @@
     class Kusabi < Formula
       desc "Bind multiple Git repositories and aggregate context for agents"
       homepage "https://github.com/novr/kusabi"
-      version "0.1.0"
+  version "0.2.0"
       license "MIT"
 
       on_macos do
-        url "https://github.com/novr/kusabi/releases/download/v0.1.0/kusabi_0.1.0_darwin.tar.gz"
-        sha256 "b2d9b4a3ecf00405a7d6a8ef660a081f56f9ce887724d2bd47359abd5b94f5c1"
+        url "https://github.com/novr/kusabi/releases/download/v0.2.0/kusabi_0.2.0_darwin.tar.gz"
+        sha256 "60bbb637f3977bfc956a67e895223bbe405eb1e04cf51efe182c4f3e18f14f44"
       end
 
       def install
