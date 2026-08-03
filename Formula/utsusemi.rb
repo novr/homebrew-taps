@@ -1,12 +1,12 @@
     class Utsusemi < Formula
       desc "Ephemeral self-hosted GitHub Actions runners for Apple Silicon Macs"
       homepage "https://github.com/novr/Utsusemi"
-  version "0.4.0"
+  version "0.5.0"
       license "MIT"
 
       on_macos do
-        url "https://github.com/novr/Utsusemi/releases/download/v0.4.0/utsusemi_0.4.0_darwin.tar.gz"
-        sha256 "1bdf83edf569bd43979b551fc217556442aa348cfccb0dff3ae770e78c431c1c"
+        url "https://github.com/novr/Utsusemi/releases/download/v0.5.0/utsusemi_0.5.0_darwin.tar.gz"
+        sha256 "8ece83cfc0e88541249ca0a886a4691b306ebec53bd33c9b8bb55dad9e16abad"
       end
 
       def install
