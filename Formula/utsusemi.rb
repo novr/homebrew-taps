@@ -15,7 +15,7 @@
       end
 
       service do
-        run [opt_bin/"utsusemi", "run"]
+        run [opt_bin/"utsusemi", "run", "--log"]
         keep_alive true
         log_path var/"log/utsusemi.log"
         error_log_path var/"log/utsusemi.error.log"
