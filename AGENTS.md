@@ -41,7 +41,7 @@ novr org 配下ツール向け Homebrew tap の汎用基盤。エージェント
 | `homepage` | Formula / Cask とも `source_repo` から導出（payload 非送信） | `source_repo` の正確性 |
 | `brew services` | 初回 add 時のみテンプレ生成 | 起動コマンド・設定ファイルの tarball 同梱 |
 | 信頼 | `novr/*` の release URL のみ受理 | org 外 repo からの dispatch 不可 |
-| 更新範囲 | **update**: Formula は version + url/sha256、Cask は version + sha256 のみ | `install` / `service` / cask 定義の手修正は tap 側で維持 |
+| 更新範囲 | **update**: Formula は version + url/sha256、Cask は version + sha256（非推奨の `url verified:` は除去） | `install` / `service` / その他 cask 手修正は tap 側で維持 |
 
 ### Producer / Consumer
 
@@ -109,6 +109,12 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 - `completion_args` / `completion_format` 指定時は `completion_shells` 必須
 - `binaries` 指定時は主 `binary` を必須含有
 - `aliases` の各名前は `binaries`（未指定時は `binary` のみ）に含まれること
+
+### Cask 生成
+
+- GitHub Release ZIP 前提（`source_repo` + `options.asset` から `url` を組み立て）
+- **add**: `desc` / `homepage` 必須。`url` に `verified:` は付けない
+- **update**: `version` / `sha256` のみ更新。非推奨の `url verified:` があれば除去する（`app` / `depends_on` 等は維持）
 
 ### 後方互換
 

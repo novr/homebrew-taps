@@ -93,6 +93,11 @@ def update_sha256(content)
   content.sub(/^\s*sha256\s+".*"$/, "  sha256 \"#{ENV.fetch("SHA256")}\"")
 end
 
+def strip_deprecated_verified(content)
+  content = content.gsub(/^(\s*url\s+".*")\s*,\s*\n\s*verified:\s*"[^"]*"\s*\n/, "\\1\n")
+  content.gsub(/^(\s*url\s+".*")\s*,\s*verified:\s*"[^"]*"\s*$/, "\\1")
+end
+
 def update_cask!
   validate_metadata!
 
@@ -106,6 +111,7 @@ def update_cask!
   content = File.read(path)
   content = update_version(content)
   content = update_sha256(content)
+  content = strip_deprecated_verified(content)
 
   File.write(path, content)
 end
@@ -127,8 +133,7 @@ def cask_template
       version "<%= ruby_string(ENV.fetch("VERSION")) %>"
       sha256 "<%= ruby_string(ENV.fetch("SHA256")) %>"
 
-      url "https://github.com/<%= ruby_string(source_repo) %>/releases/download/v\#{version}/<%= ruby_string(ENV.fetch("ASSET")) %>",
-          verified: "github.com/<%= ruby_string(source_repo) %>/"
+      url "https://github.com/<%= ruby_string(source_repo) %>/releases/download/v\#{version}/<%= ruby_string(ENV.fetch("ASSET")) %>"
       name "<%= ruby_string(display_name) %>"
       desc "<%= ruby_string(ENV.fetch("DESC")) %>"
       homepage "<%= ruby_string(ENV.fetch("HOMEPAGE")) %>"

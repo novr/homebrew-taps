@@ -60,6 +60,12 @@ with_workspace do |_dir, cask_dir|
   assert!("desc should be present") { content.include?('desc "Test macOS app"') }
   assert!("app should be present") { content.include?('app "Test.app"') }
   assert!("sha256 should be present") { content.include?("sha256 \"#{SHA256}\"") }
+  assert!("url should use github release asset") do
+    content.include?(
+      'url "https://github.com/novr/Test/releases/download/v#{version}/Test-macOS.zip"'
+    )
+  end
+  assert!("url should not use deprecated verified") { !content.include?("verified:") }
   assert!("ruby syntax should be valid") { system("ruby", "-c", cask_path) }
 
   assert!("add should update an existing cask") do
@@ -76,6 +82,40 @@ with_workspace do |_dir, cask_dir|
   updated = read_cask(cask_path)
   assert!("version should be updated") { updated.include?('version "1.0.1"') }
   assert!("sha256 should be updated") { updated.include?("sha256 \"#{'a' * 64}\"") }
+
+  File.write(
+    cask_path,
+    <<~RUBY
+      cask "test-app" do
+        version "1.0.1"
+        sha256 "#{'a' * 64}"
+
+        url "https://github.com/novr/Test/releases/download/v\#{version}/Test-macOS.zip",
+            verified: "github.com/novr/Test/"
+        name "Test App"
+        desc "Test macOS app"
+        homepage "https://github.com/novr/Test"
+
+        depends_on macos: :sonoma
+
+        app "Test.app"
+      end
+    RUBY
+  )
+
+  assert!("update should strip deprecated verified") do
+    run_script("update", { "VERSION" => "1.0.3", "SHA256" => "c" * 64 })
+  end
+
+  stripped = read_cask(cask_path)
+  assert!("verified should be removed on update") { !stripped.include?("verified:") }
+  assert!("url line should lose trailing comma") do
+    stripped.include?(
+      'url "https://github.com/novr/Test/releases/download/v#{version}/Test-macOS.zip"'
+    ) && !stripped.match?(/url\s+".*"\s*,/)
+  end
+  assert!("version should still update when stripping verified") { stripped.include?('version "1.0.3"') }
+  assert!("stripped cask syntax should be valid") { system("ruby", "-c", cask_path) }
 
   assert!("invalid cask name should fail") do
     !run_script("update", { "CASK" => "../evil" })

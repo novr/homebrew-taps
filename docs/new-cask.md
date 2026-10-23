@@ -59,11 +59,11 @@ dispatch-cask:
 <AppName>-macOS.zip
 ```
 
-リリース間で asset 名は固定する。Cask の `url` は初回作成時に埋め込まれ、以降の `update-cask` は `version` と `sha256` のみ更新する。
+リリース間で asset 名は固定する。Cask の `url` は初回作成時に埋め込まれ、以降の `update-cask` は `version` と `sha256` を更新する（非推奨の `url verified:` があれば除去する）。`url` に `verified:` は付けない。
 
 ## 参照
 
-- [Nyap](https://github.com/novr/Nyap) — 初回 Cask 追加予定の macOS アプリ repo
+- [Nyap](https://github.com/novr/Nyap) — Cask 配布済みの macOS アプリ repo
 - CLI Formula 向け手順: [new-tool.md](new-tool.md)
 
 ## 緊急再実行（reusable 非経由）
