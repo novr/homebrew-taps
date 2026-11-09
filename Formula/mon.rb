@@ -1,12 +1,12 @@
     class Mon < Formula
       desc "macOS のアプリアイコンに、ビルド番号やブランチ名の斜めリボンを合成する CLI"
       homepage "https://github.com/novr/Mon"
-  version "0.2.0"
+  version "0.3.0"
       license "MIT"
 
       on_macos do
-        url "https://github.com/novr/Mon/releases/download/v0.2.0/mon_0.2.0_darwin.tar.gz"
-        sha256 "b71a7a5bc06d2aadff493932be417b4e27304160284f8819d0f56133375e4843"
+        url "https://github.com/novr/Mon/releases/download/v0.3.0/mon_0.3.0_darwin.tar.gz"
+        sha256 "3bce4bc0c0ac7f37fe3793ff76eb9ea7f3b351decbc98547083926dd87dbabe0"
       end
 
       def install
