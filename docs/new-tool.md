@@ -105,12 +105,12 @@ reusable の `with:` 名と同じキーを、初回 dispatch では `client_payl
 | `desc` | 一行説明（**初回 `gh api` のみ必須**。reusable では渡さない） |
 | `binary` | tarball 内の実行ファイル名（`formula` と同じなら省略可）。release asset 名・`test` コマンドの基準 |
 | `binaries` | `install` する実行ファイル名（カンマ区切り）。省略時は `binary` のみ |
-| `aliases` | `brew install` 用エイリアス（カンマ区切り）。`Aliases/<name>` を生成し、同一 Formula を指す |
+| `aliases` | `brew install` 用エイリアス（カンマ区切り）。`Aliases/<name>` を `../Formula/<formula>.rb` へのシンボリックリンクとして生成する |
 | `test_match` | `brew test` 用文字列（**初回 `gh api` のみ必須**。reusable では渡さない） |
 
 `formula` と `binary` が異なる例: [rinter](https://github.com/novr/homebrew-taps/blob/main/Formula/rinter.rb)（repo は Rin、binary は `rinter`）。
 
-複数バイナリ・エイリアス例: [kusabi](https://github.com/novr/homebrew-taps/blob/main/Formula/kusabi.rb)（`kusabi` / `ksb` / `git-kusabi` を同梱、`brew install ksb` も可）。
+複数バイナリ・エイリアス例: [kusabi](https://github.com/novr/homebrew-taps/blob/main/Formula/kusabi.rb)（tarball は `kusabi` のみ。`ksb` は `bin.install_symlink` と `Aliases/ksb`）。
 
 ## brew services（省略可）
 
@@ -152,23 +152,32 @@ end
 
 ### 例: 複数バイナリとエイリアス
 
-tarball に短縮名や `git-*` コマンドが同梱される場合:
+`binaries` は tarball 内の実行ファイルだけを書く。生成される `install` はそれらを `bin.install` する。`aliases` は `../Formula/<formula>.rb` へのシンボリックリンクで、`brew install <alias>` が同じ Formula になる。alias 名は `binaries` に含める。
+
+tarball に短縮名の実体がある場合:
 
 ```json
-"binaries": "kusabi,ksb,git-kusabi",
-"aliases": "ksb,git-kusabi"
+"binaries": "mytool,mytool-short",
+"aliases": "mytool-short"
 ```
 
 生成される `install`:
 
 ```ruby
 def install
-  bin.install "kusabi", "ksb", "git-kusabi"
-  generate_completions_from_executable(bin/"kusabi", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)
+  bin.install "mytool", "mytool-short"
+  generate_completions_from_executable(bin/"mytool", shells: [:bash, :zsh, :fish], shell_parameter_format: :cobra)
 end
 ```
 
-`Aliases/ksb` と `Aliases/git-kusabi` も作成され、`brew install ksb` / `brew install git-kusabi` で同一 Formula が入る。補完は主バイナリ（`binary`）基準。
+kusabi の tarball には `kusabi` しか無い。短縮コマンドは Formula に直接書いてあり、update はこの `install` を変えない。
+
+```ruby
+bin.install "kusabi"
+bin.install_symlink "kusabi" => "ksb"
+```
+
+`Aliases/ksb` は `../Formula/kusabi.rb` を指し、`brew install ksb` で同じ Formula が入る。補完は主バイナリ（`binary`）基準。
 
 制約:
 

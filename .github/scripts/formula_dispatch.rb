@@ -275,7 +275,13 @@ def update_version(content)
     abort("Failed to find version in #{formula_path}")
   end
 
-  content.sub(/^\s*version\s+".*"$/, "  version \"#{ruby_string(ENV.fetch("VERSION"))}\"")
+  new_version = ruby_string(ENV.fetch("VERSION"))
+  current_version = content[/^\s*version\s+"([^"]*)"/, 1]
+  content = content.sub(/^\s*version\s+".*"$/, "  version \"#{new_version}\"")
+  # revision は同一 version の再インストール用。version が変わったら戻す。
+  return content if current_version == new_version
+
+  content.sub(/^\s*revision\s+\d+\s*\n/, "")
 end
 
 def update_formula!
@@ -364,6 +370,13 @@ def write_aliases!
   aliases_dir = File.expand_path("Aliases", Dir.pwd)
   FileUtils.mkdir_p(aliases_dir)
 
+  formula_file = File.expand_path("Formula/#{formula}.rb", Dir.pwd)
+  abort("Formula not found: #{formula_file}") unless File.file?(formula_file)
+
+  # brew tap は Aliases を formula への symlink だけ受け付ける。
+  # File.write は symlink を辿るので、ここでは使わない。
+  target = "../Formula/#{formula}.rb"
+
   list.each do |alias_name|
     validate_alias_name!(alias_name)
 
@@ -375,12 +388,19 @@ def write_aliases!
     path = File.expand_path("Aliases/#{alias_name}", Dir.pwd)
     abort("Invalid alias path: #{path}") unless path.start_with?("#{aliases_dir}/")
 
-    if File.file?(path)
+    if File.symlink?(path)
+      existing = File.readlink(path)
+      abort("alias already points to #{existing}: #{alias_name}") if existing != target
+      next
+    elsif File.exist?(path)
+      abort("alias path is not a file: #{alias_name}") unless File.file?(path)
+
       existing = File.read(path).strip
       abort("alias already points to #{existing}: #{alias_name}") if existing != formula
+      File.unlink(path)
     end
 
-    File.write(path, "#{formula}\n")
+    File.symlink(target, path)
   end
 end
 

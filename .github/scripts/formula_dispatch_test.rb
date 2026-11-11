@@ -69,6 +69,13 @@ def read_formula(path)
   File.read(path)
 end
 
+def alias_symlink?(dir, name, formula)
+  path = File.join(dir, "Aliases", name)
+  File.symlink?(path) &&
+    File.readlink(path) == "../Formula/#{formula}.rb" &&
+    File.file?(path)
+end
+
 with_workspace do |dir, formula_dir|
   formula_path = File.join(formula_dir, "test-cli.rb")
 
@@ -107,6 +114,33 @@ with_workspace do |dir, formula_dir|
   updated = read_formula(formula_path)
   assert!("version should be updated") { updated.include?('version "1.0.1"') }
   assert!("url should be updated") { updated.include?("v1.0.1/test-cli_1.0.1_darwin.tar.gz") }
+
+  File.write(formula_path, updated.sub(/^( *version "1.0.1"\n)/, "\\1  revision 1\n"))
+  assert!("same version update should keep revision") do
+    run_script(
+      "update",
+      {
+        "VERSION" => "1.0.1",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.1/test-cli_1.0.1_darwin.tar.gz"
+      }
+    )
+  end
+  assert!("revision should remain when version is unchanged") do
+    read_formula(formula_path).include?("revision 1")
+  end
+
+  assert!("version bump should drop revision") do
+    run_script(
+      "update",
+      {
+        "VERSION" => "1.0.3",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.3/test-cli_1.0.3_darwin.tar.gz"
+      }
+    )
+  end
+  bumped = read_formula(formula_path)
+  assert!("revision should be removed after a version bump") { !bumped.include?("revision") }
+  assert!("bumped version should be written") { bumped.include?('version "1.0.3"') }
 
   assert!("invalid formula name should fail") do
     !run_script("update", { "FORMULA" => "../evil" })
@@ -390,9 +424,8 @@ with_workspace do |dir, formula_dir|
     multi_content.include?('bin.install "multi-cli", "short-cli", "git-multi"')
   end
   assert!("alias files should be created") do
-    File.file?(File.join(dir, "Aliases", "short-cli")) &&
-      File.read(File.join(dir, "Aliases", "short-cli")).strip == "multi-cli" &&
-      File.read(File.join(dir, "Aliases", "git-multi")).strip == "multi-cli"
+    alias_symlink?(dir, "short-cli", "multi-cli") &&
+      alias_symlink?(dir, "git-multi", "multi-cli")
   end
   assert!("multi formula syntax should be valid") { system("ruby", "-c", multi_path) }
 
@@ -454,8 +487,51 @@ with_workspace do |dir, formula_dir|
   end
 
   assert!("alias files should remain after add on existing formula") do
-    File.file?(File.join(dir, "Aliases", "short-cli")) &&
-      File.read(File.join(dir, "Aliases", "short-cli")).strip == "multi-cli"
+    alias_symlink?(dir, "short-cli", "multi-cli") &&
+      alias_symlink?(dir, "git-multi", "multi-cli")
+  end
+  assert!("formula should stay a regular file after alias add") do
+    File.file?(multi_path) && !File.symlink?(multi_path) &&
+      read_formula(multi_path).include?("class MultiCli < Formula")
+  end
+
+  short_cli = File.join(dir, "Aliases", "short-cli")
+  File.unlink(short_cli)
+  File.write(short_cli, "multi-cli\n")
+  assert!("add should replace a plain-text alias with a symlink") do
+    run_script(
+      "add",
+      {
+        "FORMULA" => "multi-cli",
+        "BINARY" => "multi-cli",
+        "BINARIES" => "multi-cli,short-cli,git-multi",
+        "ALIASES" => "short-cli,git-multi"
+      }
+    )
+  end
+  assert!("plain-text alias should become a symlink") do
+    alias_symlink?(dir, "short-cli", "multi-cli")
+  end
+  assert!("formula should not be overwritten through an alias") do
+    read_formula(multi_path).include?("class MultiCli < Formula")
+  end
+
+  git_multi = File.join(dir, "Aliases", "git-multi")
+  File.unlink(git_multi)
+  File.write(git_multi, "other-cli\n")
+  assert!("alias pointing at another formula should fail") do
+    !run_script(
+      "add",
+      {
+        "FORMULA" => "multi-cli",
+        "BINARY" => "multi-cli",
+        "BINARIES" => "multi-cli,short-cli,git-multi",
+        "ALIASES" => "git-multi"
+      }
+    )
+  end
+  assert!("mismatched alias should stay untouched") do
+    !File.symlink?(git_multi) && File.read(git_multi).strip == "other-cli"
   end
 
   File.write(File.join(formula_dir, "conflict-cli.rb"), LEGACY_FORMULA.gsub("TestCli", "ConflictCli").gsub("test-cli", "conflict-cli"))

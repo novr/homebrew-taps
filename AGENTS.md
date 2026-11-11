@@ -109,6 +109,8 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 - `completion_args` / `completion_format` 指定時は `completion_shells` 必須
 - `binaries` 指定時は主 `binary` を必須含有
 - `aliases` の各名前は `binaries`（未指定時は `binary` のみ）に含まれること
+- `Aliases/<name>` は `../Formula/<formula>.rb` へのシンボリックリンク。通常ファイルは `brew tap` が拒否する
+- `binaries` は tarball にある実行ファイルだけ。kusabi の `ksb` は `bin.install_symlink` で、`bin.install` の対象にしない
 
 ### Cask 生成
 
