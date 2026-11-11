@@ -84,7 +84,9 @@ with_workspace do |dir, formula_dir|
 
   content = read_formula(formula_path)
   assert!("desc should be present") { content.include?('desc "Test CLI"') }
-  assert!("formula should use universal on_macos block") { content.match?(/on_macos do\n\s+url /) }
+  assert!("formula should declare a top-level url") { content.match?(/^\s+url "/) }
+  assert!("formula should depend on macos") { content.include?("depends_on :macos") }
+  refute!("formula should not hide the url in on_macos") { content.include?("on_macos do") }
   refute!("formula should not use on_arm block") { content.include?("on_arm do") }
   assert!("ruby syntax should be valid") { system("ruby", "-c", formula_path) }
 
@@ -178,9 +180,55 @@ with_workspace do |dir, formula_dir|
 
   legacy_updated = read_formula(legacy_path)
   assert!("legacy formula should drop on_arm block") { !legacy_updated.include?("on_arm do") }
+  assert!("legacy formula should drop on_macos block") { !legacy_updated.include?("on_macos do") }
+  assert!("legacy formula should depend on macos") { legacy_updated.include?("depends_on :macos") }
   assert!("legacy formula should use universal url") do
     legacy_updated.include?("legacy-cli_1.0.0_darwin.tar.gz")
   end
+  assert!("legacy migration should keep indentation") do
+    legacy_updated.match?(/^  url "[^"]+"\n  sha256 "[^"]+"\n  depends_on :macos$/)
+  end
+  assert!("legacy formula syntax should be valid") { system("ruby", "-c", legacy_path) }
+
+  on_macos_path = File.join(formula_dir, "on-macos-cli.rb")
+  File.write(on_macos_path, <<~RUBY)
+    class OnMacosCli < Formula
+      desc "On macOS"
+      homepage "https://github.com/novr/Test"
+      version "0.9.0"
+      license "MIT"
+
+      depends_on :macos
+
+      on_macos do
+        url "https://github.com/novr/Test/releases/download/v0.9.0/on-macos-cli_0.9.0_darwin.tar.gz"
+        sha256 "#{SHA256}"
+      end
+
+      def install
+        bin.install "on-macos-cli"
+      end
+    end
+  RUBY
+  assert!("on_macos formula should migrate on update") do
+    run_script(
+      "update",
+      {
+        "FORMULA" => "on-macos-cli",
+        "VERSION" => "1.0.0",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/on-macos-cli_1.0.0_darwin.tar.gz"
+      }
+    )
+  end
+  on_macos_updated = read_formula(on_macos_path)
+  assert!("on_macos block should be removed") { !on_macos_updated.include?("on_macos do") }
+  assert!("on_macos url should be top-level and updated") do
+    on_macos_updated.match?(/^  url "[^"]+on-macos-cli_1\.0\.0_darwin\.tar\.gz"$/)
+  end
+  assert!("existing depends_on :macos should not be duplicated") do
+    on_macos_updated.scan("depends_on :macos").length == 1
+  end
+  assert!("migrated on_macos formula syntax should be valid") { system("ruby", "-c", on_macos_path) }
 
   FileUtils.rm_f(formula_path)
   assert!("upsert should create formula") do

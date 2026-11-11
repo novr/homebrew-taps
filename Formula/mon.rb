@@ -4,10 +4,9 @@
   version "0.3.0"
       license "MIT"
 
-      on_macos do
-        url "https://github.com/novr/Mon/releases/download/v0.3.0/mon_0.3.0_darwin.tar.gz"
-        sha256 "3bce4bc0c0ac7f37fe3793ff76eb9ea7f3b351decbc98547083926dd87dbabe0"
-      end
+      url "https://github.com/novr/Mon/releases/download/v0.3.0/mon_0.3.0_darwin.tar.gz"
+      sha256 "3bce4bc0c0ac7f37fe3793ff76eb9ea7f3b351decbc98547083926dd87dbabe0"
+      depends_on :macos
 
       def install
         bin.install "mon"

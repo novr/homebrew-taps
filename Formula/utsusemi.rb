@@ -4,10 +4,9 @@
   version "0.29.0"
       license "MIT"
 
-      on_macos do
-        url "https://github.com/novr/Utsusemi/releases/download/v0.29.0/utsusemi_0.29.0_darwin.tar.gz"
-        sha256 "751c88727ac7cf68232a3fb80a5d468a31a3b55f2cb308d99113f02661ee00b8"
-      end
+      url "https://github.com/novr/Utsusemi/releases/download/v0.29.0/utsusemi_0.29.0_darwin.tar.gz"
+      sha256 "751c88727ac7cf68232a3fb80a5d468a31a3b55f2cb308d99113f02661ee00b8"
+      depends_on :macos
 
       def install
         bin.install "utsusemi"
