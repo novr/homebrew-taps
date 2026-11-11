@@ -22,7 +22,9 @@ TOPLEVEL_URL_SHA256_PATTERN = /(^ *url )"[^"]+"\n( *sha256 )"[^"]+"/
 ON_MACOS_URL_SHA256_PATTERN = /^( *)on_macos do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end/
 # universal 化前の Formula を壊さず移行する
 LEGACY_MACOS_ARM_PATTERN = /^( *)on_macos do\n\s+on_arm do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end\n\s+end/
-DEPENDS_ON_MACOS_PATTERN = /^\s*depends_on :macos\s*$/
+MACOS_REQUIREMENT_PATTERN = /^\s*depends_on\s+(?::macos\b|macos:|maximum_macos:)/
+OS_CONDITIONAL_LINE = /^\s*on_(?:macos|linux|arm|intel)\s+do\s*$/
+URL_LINE = /^\s*url\s+"/
 
 def formula_path
   name = ENV.fetch("FORMULA")
@@ -254,9 +256,20 @@ def upsert_allowed?
 end
 
 def toplevel_url_lines(url, sha256, indent, content)
-  lines = ["url \"#{url}\"", "sha256 \"#{sha256}\""]
-  lines << "depends_on :macos" unless content.match?(DEPENDS_ON_MACOS_PATTERN)
+  lines = ["url \"#{ruby_string(url)}\"", "sha256 \"#{ruby_string(sha256)}\""]
+  lines << "depends_on :macos" unless content.match?(MACOS_REQUIREMENT_PATTERN)
   lines.map { |line| "#{indent}#{line}" }.join("\n")
+end
+
+# 最初の url より前に OS 分岐があると、トップレベルの置換は分岐の内側を書き換える。
+def os_conditional_url?(content)
+  os_seen = false
+  content.each_line do |line|
+    return true if os_seen && line.match?(URL_LINE)
+
+    os_seen = true if line.match?(OS_CONDITIONAL_LINE)
+  end
+  false
 end
 
 # `on_macos` だけの url は brew tap の Linux 検証で落ちるため、トップレベルへ移す。
@@ -267,9 +280,17 @@ def replace_macos_url_sha256!(content, url, sha256)
     return content.sub(pattern) { toplevel_url_lines(url, sha256, Regexp.last_match(1), content) }
   end
 
+  if os_conditional_url?(content)
+    abort("OS-specific url block is not a known shape: #{formula_path}")
+  end
+
   abort("Failed to find url/sha256 in #{formula_path}") unless content.match?(TOPLEVEL_URL_SHA256_PATTERN)
 
-  content.sub(TOPLEVEL_URL_SHA256_PATTERN) { "#{Regexp.last_match(1)}\"#{url}\"\n#{Regexp.last_match(2)}\"#{sha256}\"" }
+  quoted_url = ruby_string(url)
+  quoted_sha = ruby_string(sha256)
+  content.sub(TOPLEVEL_URL_SHA256_PATTERN) do
+    "#{Regexp.last_match(1)}\"#{quoted_url}\"\n#{Regexp.last_match(2)}\"#{quoted_sha}\""
+  end
 end
 
 def update_version(content)

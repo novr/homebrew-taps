@@ -116,6 +116,9 @@ with_workspace do |dir, formula_dir|
   updated = read_formula(formula_path)
   assert!("version should be updated") { updated.include?('version "1.0.1"') }
   assert!("url should be updated") { updated.include?("v1.0.1/test-cli_1.0.1_darwin.tar.gz") }
+  assert!("update should keep a single macos requirement") do
+    updated.scan("depends_on :macos").length == 1
+  end
 
   File.write(formula_path, updated.sub(/^( *version "1.0.1"\n)/, "\\1  revision 1\n"))
   assert!("same version update should keep revision") do
@@ -229,6 +232,109 @@ with_workspace do |dir, formula_dir|
     on_macos_updated.scan("depends_on :macos").length == 1
   end
   assert!("migrated on_macos formula syntax should be valid") { system("ruby", "-c", on_macos_path) }
+
+  versioned_path = File.join(formula_dir, "versioned-macos-cli.rb")
+  versioned_original = <<~RUBY
+    class VersionedMacosCli < Formula
+      desc "Versioned"
+      homepage "https://github.com/novr/Test"
+      version "0.9.0"
+      license "MIT"
+
+      depends_on macos: :sonoma
+
+      on_macos do
+        url "https://github.com/novr/Test/releases/download/v0.9.0/versioned-macos-cli_0.9.0_darwin.tar.gz"
+        sha256 "#{SHA256}"
+      end
+
+      def install
+        bin.install "versioned-macos-cli"
+      end
+    end
+  RUBY
+  File.write(versioned_path, versioned_original)
+  assert!("versioned macos requirement should migrate") do
+    run_script(
+      "update",
+      {
+        "FORMULA" => "versioned-macos-cli",
+        "VERSION" => "1.0.0",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/versioned-macos-cli_1.0.0_darwin.tar.gz"
+      }
+    )
+  end
+  versioned_updated = read_formula(versioned_path)
+  assert!("versioned requirement should remain the only macos dependency") do
+    versioned_updated.include?("depends_on macos: :sonoma") &&
+      !versioned_updated.include?("depends_on :macos") &&
+      !versioned_updated.include?("on_macos do")
+  end
+
+  quoted_path = File.join(formula_dir, "quoted-url-cli.rb")
+  File.write(quoted_path, <<~RUBY)
+    class QuotedUrlCli < Formula
+      desc "Quoted"
+      homepage "https://github.com/novr/Test"
+      version "0.9.0"
+      license "MIT"
+
+      url "https://github.com/novr/Test/releases/download/v0.9.0/quoted-url-cli_0.9.0_darwin.tar.gz"
+      sha256 "#{SHA256}"
+      depends_on :macos
+
+      def install
+        on_macos do
+          bin.install "quoted-url-cli"
+        end
+      end
+    end
+  RUBY
+  quoted_url = "https://github.com/novr/Test/releases/download/v1.0.0/quoted-url-cli_1.0.0_\"darwin.tar.gz"
+  assert!("quoted url should update a top-level formula") do
+    run_script(
+      "update",
+      {
+        "FORMULA" => "quoted-url-cli",
+        "VERSION" => "1.0.0",
+        "URL" => quoted_url
+      }
+    )
+  end
+  quoted_updated = read_formula(quoted_path)
+  assert!("quoted url should be escaped") { quoted_updated.include?('url "https://github.com/novr/Test/releases/download/v1.0.0/quoted-url-cli_1.0.0_\\"darwin.tar.gz"') }
+  assert!("install on_macos block should stay") { quoted_updated.include?("on_macos do") }
+  assert!("quoted formula syntax should be valid") { system("ruby", "-c", quoted_path) }
+
+  unknown_path = File.join(formula_dir, "unknown-os-cli.rb")
+  unknown_original = <<~RUBY
+    class UnknownOsCli < Formula
+      desc "Unknown"
+      homepage "https://github.com/novr/Test"
+      version "0.9.0"
+      license "MIT"
+
+      on_macos do
+        url "https://github.com/novr/Test/releases/download/v0.9.0/unknown-os-cli_0.9.0_darwin.tar.gz"
+        sha256 "#{SHA256}"
+        depends_on :macos
+      end
+    end
+  RUBY
+  File.write(unknown_path, unknown_original)
+  assert!("unknown os url block should fail") do
+    !run_script(
+      "update",
+      {
+        "FORMULA" => "unknown-os-cli",
+        "VERSION" => "1.0.0",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/unknown-os-cli_1.0.0_darwin.tar.gz"
+      }
+    )
+  end
+  assert!("failed migration should leave the formula unchanged") do
+    read_formula(unknown_path) == unknown_original
+  end
 
   FileUtils.rm_f(formula_path)
   assert!("upsert should create formula") do
