@@ -23,7 +23,7 @@ ON_MACOS_URL_SHA256_PATTERN = /^( *)on_macos do\n\s+url "[^"]+"\n\s+sha256 "[^"]
 # universal 化前の Formula を壊さず移行する
 LEGACY_MACOS_ARM_PATTERN = /^( *)on_macos do\n\s+on_arm do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end\n\s+end/
 MACOS_REQUIREMENT_PATTERN = /^\s*depends_on\s+(?::macos\b|macos:|maximum_macos:)/
-OS_CONDITIONAL_LINE = /^\s*on_(?:macos|linux|arm|intel)\s+do\s*$/
+OS_CONDITIONAL_LINE = /^\s*on_(?:macos|linux|arm|intel|system)\b.*\bdo\b/
 URL_LINE = /^\s*url\s+"/
 
 def formula_path
@@ -261,36 +261,48 @@ def toplevel_url_lines(url, sha256, indent, content)
   lines.map { |line| "#{indent}#{line}" }.join("\n")
 end
 
-# 最初の url より前に OS 分岐があると、トップレベルの置換は分岐の内側を書き換える。
+# OS ブロックより深くインデントされた url だけを分岐の内側とみなす。
 def os_conditional_url?(content)
-  os_seen = false
+  os_indents = []
   content.each_line do |line|
-    return true if os_seen && line.match?(URL_LINE)
+    next if line.strip.empty?
 
-    os_seen = true if line.match?(OS_CONDITIONAL_LINE)
+    indent = line[/\A */].size
+    os_indents.pop while os_indents.last && indent <= os_indents.last
+    return true if os_indents.any? && line.match?(URL_LINE)
+
+    os_indents << indent if line.match?(OS_CONDITIONAL_LINE)
   end
   false
 end
 
 # `on_macos` だけの url は brew tap の Linux 検証で落ちるため、トップレベルへ移す。
 def replace_macos_url_sha256!(content, url, sha256)
+  updated = nil
   [ON_MACOS_URL_SHA256_PATTERN, LEGACY_MACOS_ARM_PATTERN].each do |pattern|
     next unless content.match?(pattern)
 
-    return content.sub(pattern) { toplevel_url_lines(url, sha256, Regexp.last_match(1), content) }
+    updated = content.sub(pattern) { toplevel_url_lines(url, sha256, Regexp.last_match(1), content) }
+    break
   end
 
-  if os_conditional_url?(content)
-    abort("OS-specific url block is not a known shape: #{formula_path}")
+  if updated.nil?
+    if os_conditional_url?(content)
+      abort("OS-specific url block is not a known shape: #{formula_path}")
+    end
+
+    abort("Failed to find url/sha256 in #{formula_path}") unless content.match?(TOPLEVEL_URL_SHA256_PATTERN)
+
+    quoted_url = ruby_string(url)
+    quoted_sha = ruby_string(sha256)
+    updated = content.sub(TOPLEVEL_URL_SHA256_PATTERN) do
+      "#{Regexp.last_match(1)}\"#{quoted_url}\"\n#{Regexp.last_match(2)}\"#{quoted_sha}\""
+    end
   end
 
-  abort("Failed to find url/sha256 in #{formula_path}") unless content.match?(TOPLEVEL_URL_SHA256_PATTERN)
+  abort("OS-specific url block is not a known shape: #{formula_path}") if os_conditional_url?(updated)
 
-  quoted_url = ruby_string(url)
-  quoted_sha = ruby_string(sha256)
-  content.sub(TOPLEVEL_URL_SHA256_PATTERN) do
-    "#{Regexp.last_match(1)}\"#{quoted_url}\"\n#{Regexp.last_match(2)}\"#{quoted_sha}\""
-  end
+  updated
 end
 
 def update_version(content)

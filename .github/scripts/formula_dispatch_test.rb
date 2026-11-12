@@ -272,6 +272,7 @@ with_workspace do |dir, formula_dir|
   end
 
   quoted_path = File.join(formula_dir, "quoted-url-cli.rb")
+  head_url = "https://github.com/novr/Test.git"
   File.write(quoted_path, <<~RUBY)
     class QuotedUrlCli < Formula
       desc "Quoted"
@@ -287,6 +288,10 @@ with_workspace do |dir, formula_dir|
         on_macos do
           bin.install "quoted-url-cli"
         end
+      end
+
+      head do
+        url "#{head_url}"
       end
     end
   RUBY
@@ -304,6 +309,7 @@ with_workspace do |dir, formula_dir|
   quoted_updated = read_formula(quoted_path)
   assert!("quoted url should be escaped") { quoted_updated.include?('url "https://github.com/novr/Test/releases/download/v1.0.0/quoted-url-cli_1.0.0_\\"darwin.tar.gz"') }
   assert!("install on_macos block should stay") { quoted_updated.include?("on_macos do") }
+  assert!("head url after install on_macos should stay") { quoted_updated.include?("url \"#{head_url}\"") }
   assert!("quoted formula syntax should be valid") { system("ruby", "-c", quoted_path) }
 
   unknown_path = File.join(formula_dir, "unknown-os-cli.rb")
@@ -334,6 +340,69 @@ with_workspace do |dir, formula_dir|
   end
   assert!("failed migration should leave the formula unchanged") do
     read_formula(unknown_path) == unknown_original
+  end
+
+  linux_path = File.join(formula_dir, "linux-cli.rb")
+  linux_original = <<~RUBY
+    class LinuxCli < Formula
+      desc "Linux"
+      homepage "https://github.com/novr/Test"
+      version "0.9.0"
+      license "MIT"
+
+      on_macos do
+        url "https://github.com/novr/Test/releases/download/v0.9.0/linux-cli_0.9.0_darwin.tar.gz"
+        sha256 "#{SHA256}"
+      end
+
+      on_linux do
+        url "https://github.com/novr/Test/releases/download/v0.9.0/linux-cli_0.9.0_linux.tar.gz"
+        sha256 "#{SHA256}"
+      end
+    end
+  RUBY
+  File.write(linux_path, linux_original)
+  assert!("leftover os url should fail") do
+    !run_script(
+      "update",
+      {
+        "FORMULA" => "linux-cli",
+        "VERSION" => "1.0.0",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/linux-cli_1.0.0_darwin.tar.gz"
+      }
+    )
+  end
+  assert!("leftover os url should leave the formula unchanged") do
+    read_formula(linux_path) == linux_original
+  end
+
+  system_path = File.join(formula_dir, "system-cli.rb")
+  system_original = <<~RUBY
+    class SystemCli < Formula
+      desc "System"
+      homepage "https://github.com/novr/Test"
+      version "0.9.0"
+      license "MIT"
+
+      on_system :linux do
+        url "https://github.com/novr/Test/releases/download/v0.9.0/system-cli_0.9.0_linux.tar.gz"
+        sha256 "#{SHA256}"
+      end
+    end
+  RUBY
+  File.write(system_path, system_original)
+  assert!("on_system url should fail") do
+    !run_script(
+      "update",
+      {
+        "FORMULA" => "system-cli",
+        "VERSION" => "1.0.0",
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/system-cli_1.0.0_darwin.tar.gz"
+      }
+    )
+  end
+  assert!("on_system url should leave the formula unchanged") do
+    read_formula(system_path) == system_original
   end
 
   FileUtils.rm_f(formula_path)
