@@ -19,10 +19,6 @@ COMPLETION_ARG_PATTERN = SERVICE_RUN_ARG_PATTERN
 # dispatch 元を novr org に限定する（tap の信頼境界）
 NOVR_GITHUB_URL_PATTERN = %r{\Ahttps://github\.com/novr/}i
 TOPLEVEL_URL_SHA256_PATTERN = /(^ *url )"[^"]+"\n( *sha256 )"[^"]+"/
-ON_MACOS_URL_SHA256_PATTERN = /^( *)on_macos do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end/
-# universal 化前の Formula を壊さず移行する
-LEGACY_MACOS_ARM_PATTERN = /^( *)on_macos do\n\s+on_arm do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end\n\s+end/
-MACOS_REQUIREMENT_PATTERN = /^\s*depends_on\s+(?::macos\b|macos:|maximum_macos:)/
 OS_CONDITIONAL_LINE = /^\s*on_(?:macos|linux|arm|intel|system)\b.*\bdo\b/
 URL_LINE = /^\s*url\s+"/
 
@@ -255,13 +251,6 @@ def upsert_allowed?
   desc && !desc.empty? && homepage && !homepage.empty?
 end
 
-def toplevel_url_lines(url, sha256, indent, content)
-  lines = ["url \"#{ruby_string(url)}\"", "sha256 \"#{ruby_string(sha256)}\""]
-  lines << "depends_on :macos" unless content.match?(MACOS_REQUIREMENT_PATTERN)
-  lines.map { |line| "#{indent}#{line}" }.join("\n")
-end
-
-# OS ブロックより深くインデントされた url だけを分岐の内側とみなす。
 def os_conditional_url?(content)
   os_indents = []
   content.each_line do |line|
@@ -276,33 +265,15 @@ def os_conditional_url?(content)
   false
 end
 
-# `on_macos` だけの url は brew tap の Linux 検証で落ちるため、トップレベルへ移す。
 def replace_macos_url_sha256!(content, url, sha256)
-  updated = nil
-  [ON_MACOS_URL_SHA256_PATTERN, LEGACY_MACOS_ARM_PATTERN].each do |pattern|
-    next unless content.match?(pattern)
+  abort("url must be top-level: #{formula_path}") if os_conditional_url?(content)
+  abort("Failed to find url/sha256 in #{formula_path}") unless content.match?(TOPLEVEL_URL_SHA256_PATTERN)
 
-    updated = content.sub(pattern) { toplevel_url_lines(url, sha256, Regexp.last_match(1), content) }
-    break
+  quoted_url = ruby_string(url)
+  quoted_sha = ruby_string(sha256)
+  content.sub(TOPLEVEL_URL_SHA256_PATTERN) do
+    "#{Regexp.last_match(1)}\"#{quoted_url}\"\n#{Regexp.last_match(2)}\"#{quoted_sha}\""
   end
-
-  if updated.nil?
-    if os_conditional_url?(content)
-      abort("OS-specific url block is not a known shape: #{formula_path}")
-    end
-
-    abort("Failed to find url/sha256 in #{formula_path}") unless content.match?(TOPLEVEL_URL_SHA256_PATTERN)
-
-    quoted_url = ruby_string(url)
-    quoted_sha = ruby_string(sha256)
-    updated = content.sub(TOPLEVEL_URL_SHA256_PATTERN) do
-      "#{Regexp.last_match(1)}\"#{quoted_url}\"\n#{Regexp.last_match(2)}\"#{quoted_sha}\""
-    end
-  end
-
-  abort("OS-specific url block is not a known shape: #{formula_path}") if os_conditional_url?(updated)
-
-  updated
 end
 
 def update_version(content)

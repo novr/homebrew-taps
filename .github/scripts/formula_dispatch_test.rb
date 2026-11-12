@@ -17,31 +17,6 @@ BASE_ENV = {
   "BINARY" => "test-cli"
 }.freeze
 
-LEGACY_FORMULA = <<~RUBY
-  class TestCli < Formula
-    desc "Legacy"
-    homepage "https://github.com/novr/Test"
-    version "0.9.0"
-    license "MIT"
-
-    on_macos do
-      on_arm do
-        url "https://github.com/novr/Test/releases/download/v0.9.0/test-cli_0.9.0_darwin_arm64.tar.gz"
-        sha256 "#{SHA256}"
-      end
-    end
-
-    def install
-      bin.install "test-cli"
-    end
-
-    test do
-      output = shell_output("\#{bin}/test-cli --help")
-      assert_match "USAGE: test-cli", output
-    end
-  end
-RUBY
-
 def assert!(message)
   raise "Assertion failed: #{message}" unless yield
 end
@@ -167,108 +142,33 @@ with_workspace do |dir, formula_dir|
     !run_script("update", { "URL" => "https://github.com/novr/Other/archive/main.zip" })
   end
 
-  legacy_path = File.join(formula_dir, "legacy-cli.rb")
-  File.write(legacy_path, LEGACY_FORMULA.gsub("TestCli", "LegacyCli").gsub("test-cli", "legacy-cli"))
-
-  assert!("legacy formula should migrate on update") do
-    run_script(
-      "update",
-      {
-        "FORMULA" => "legacy-cli",
-        "VERSION" => "1.0.0",
-        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/legacy-cli_1.0.0_darwin.tar.gz"
-      }
-    )
-  end
-
-  legacy_updated = read_formula(legacy_path)
-  assert!("legacy formula should drop on_arm block") { !legacy_updated.include?("on_arm do") }
-  assert!("legacy formula should drop on_macos block") { !legacy_updated.include?("on_macos do") }
-  assert!("legacy formula should depend on macos") { legacy_updated.include?("depends_on :macos") }
-  assert!("legacy formula should use universal url") do
-    legacy_updated.include?("legacy-cli_1.0.0_darwin.tar.gz")
-  end
-  assert!("legacy migration should keep indentation") do
-    legacy_updated.match?(/^  url "[^"]+"\n  sha256 "[^"]+"\n  depends_on :macos$/)
-  end
-  assert!("legacy formula syntax should be valid") { system("ruby", "-c", legacy_path) }
-
-  on_macos_path = File.join(formula_dir, "on-macos-cli.rb")
-  File.write(on_macos_path, <<~RUBY)
-    class OnMacosCli < Formula
-      desc "On macOS"
+  os_path = File.join(formula_dir, "os-cli.rb")
+  os_original = <<~RUBY
+    class OsCli < Formula
+      desc "OS"
       homepage "https://github.com/novr/Test"
       version "0.9.0"
       license "MIT"
 
-      depends_on :macos
-
       on_macos do
-        url "https://github.com/novr/Test/releases/download/v0.9.0/on-macos-cli_0.9.0_darwin.tar.gz"
+        url "https://github.com/novr/Test/releases/download/v0.9.0/os-cli_0.9.0_darwin.tar.gz"
         sha256 "#{SHA256}"
-      end
-
-      def install
-        bin.install "on-macos-cli"
       end
     end
   RUBY
-  assert!("on_macos formula should migrate on update") do
-    run_script(
+  File.write(os_path, os_original)
+  assert!("os url should fail") do
+    !run_script(
       "update",
       {
-        "FORMULA" => "on-macos-cli",
+        "FORMULA" => "os-cli",
         "VERSION" => "1.0.0",
-        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/on-macos-cli_1.0.0_darwin.tar.gz"
+        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/os-cli_1.0.0_darwin.tar.gz"
       }
     )
   end
-  on_macos_updated = read_formula(on_macos_path)
-  assert!("on_macos block should be removed") { !on_macos_updated.include?("on_macos do") }
-  assert!("on_macos url should be top-level and updated") do
-    on_macos_updated.match?(/^  url "[^"]+on-macos-cli_1\.0\.0_darwin\.tar\.gz"$/)
-  end
-  assert!("existing depends_on :macos should not be duplicated") do
-    on_macos_updated.scan("depends_on :macos").length == 1
-  end
-  assert!("migrated on_macos formula syntax should be valid") { system("ruby", "-c", on_macos_path) }
-
-  versioned_path = File.join(formula_dir, "versioned-macos-cli.rb")
-  versioned_original = <<~RUBY
-    class VersionedMacosCli < Formula
-      desc "Versioned"
-      homepage "https://github.com/novr/Test"
-      version "0.9.0"
-      license "MIT"
-
-      depends_on macos: :sonoma
-
-      on_macos do
-        url "https://github.com/novr/Test/releases/download/v0.9.0/versioned-macos-cli_0.9.0_darwin.tar.gz"
-        sha256 "#{SHA256}"
-      end
-
-      def install
-        bin.install "versioned-macos-cli"
-      end
-    end
-  RUBY
-  File.write(versioned_path, versioned_original)
-  assert!("versioned macos requirement should migrate") do
-    run_script(
-      "update",
-      {
-        "FORMULA" => "versioned-macos-cli",
-        "VERSION" => "1.0.0",
-        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/versioned-macos-cli_1.0.0_darwin.tar.gz"
-      }
-    )
-  end
-  versioned_updated = read_formula(versioned_path)
-  assert!("versioned requirement should remain the only macos dependency") do
-    versioned_updated.include?("depends_on macos: :sonoma") &&
-      !versioned_updated.include?("depends_on :macos") &&
-      !versioned_updated.include?("on_macos do")
+  assert!("os url should leave the formula unchanged") do
+    read_formula(os_path) == os_original
   end
 
   quoted_path = File.join(formula_dir, "quoted-url-cli.rb")
@@ -311,70 +211,6 @@ with_workspace do |dir, formula_dir|
   assert!("install on_macos block should stay") { quoted_updated.include?("on_macos do") }
   assert!("head url after install on_macos should stay") { quoted_updated.include?("url \"#{head_url}\"") }
   assert!("quoted formula syntax should be valid") { system("ruby", "-c", quoted_path) }
-
-  unknown_path = File.join(formula_dir, "unknown-os-cli.rb")
-  unknown_original = <<~RUBY
-    class UnknownOsCli < Formula
-      desc "Unknown"
-      homepage "https://github.com/novr/Test"
-      version "0.9.0"
-      license "MIT"
-
-      on_macos do
-        url "https://github.com/novr/Test/releases/download/v0.9.0/unknown-os-cli_0.9.0_darwin.tar.gz"
-        sha256 "#{SHA256}"
-        depends_on :macos
-      end
-    end
-  RUBY
-  File.write(unknown_path, unknown_original)
-  assert!("unknown os url block should fail") do
-    !run_script(
-      "update",
-      {
-        "FORMULA" => "unknown-os-cli",
-        "VERSION" => "1.0.0",
-        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/unknown-os-cli_1.0.0_darwin.tar.gz"
-      }
-    )
-  end
-  assert!("failed migration should leave the formula unchanged") do
-    read_formula(unknown_path) == unknown_original
-  end
-
-  linux_path = File.join(formula_dir, "linux-cli.rb")
-  linux_original = <<~RUBY
-    class LinuxCli < Formula
-      desc "Linux"
-      homepage "https://github.com/novr/Test"
-      version "0.9.0"
-      license "MIT"
-
-      on_macos do
-        url "https://github.com/novr/Test/releases/download/v0.9.0/linux-cli_0.9.0_darwin.tar.gz"
-        sha256 "#{SHA256}"
-      end
-
-      on_linux do
-        url "https://github.com/novr/Test/releases/download/v0.9.0/linux-cli_0.9.0_linux.tar.gz"
-        sha256 "#{SHA256}"
-      end
-    end
-  RUBY
-  File.write(linux_path, linux_original)
-  assert!("leftover os url should fail") do
-    !run_script(
-      "update",
-      {
-        "FORMULA" => "linux-cli",
-        "VERSION" => "1.0.0",
-        "URL" => "https://github.com/novr/Test/releases/download/v1.0.0/linux-cli_1.0.0_darwin.tar.gz"
-      }
-    )
-  end
-  assert!("leftover os url should leave the formula unchanged") do
-    read_formula(linux_path) == linux_original
-  end
 
   system_path = File.join(formula_dir, "system-cli.rb")
   system_original = <<~RUBY
@@ -757,7 +593,17 @@ with_workspace do |dir, formula_dir|
     !File.symlink?(git_multi) && File.read(git_multi).strip == "other-cli"
   end
 
-  File.write(File.join(formula_dir, "conflict-cli.rb"), LEGACY_FORMULA.gsub("TestCli", "ConflictCli").gsub("test-cli", "conflict-cli"))
+  File.write(File.join(formula_dir, "conflict-cli.rb"), <<~RUBY)
+    class ConflictCli < Formula
+      desc "Conflict"
+      homepage "https://github.com/novr/Test"
+      version "1.0.0"
+      license "MIT"
+      url "https://github.com/novr/Test/releases/download/v1.0.0/conflict-cli_1.0.0_darwin.tar.gz"
+      sha256 "#{SHA256}"
+      depends_on :macos
+    end
+  RUBY
   assert!("alias conflicting with existing formula should fail") do
     !run_script(
       "add",
