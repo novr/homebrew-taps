@@ -102,6 +102,7 @@ JSON は **`jq`** で構築する。consumer は `resolve_*_payload.sh` で正�
 ### Formula 生成
 
 - macOS universal binary 前提（`<binary>_<version>_darwin.tar.gz`）
+- `url` / `sha256` はトップレベル。macOS 要件が無ければ `depends_on :macos` を付ける。OS 分岐の中の url は更新しない
 - **add**: `desc` 必須。brew service / shell completion / 複数バイナリ・エイリアスは任意（`service_run_args` / `completion_shells` / `binaries` / `aliases` がトリガー）
 - **update**: `install` / `service` / `Aliases/` は変更しない
 - `service_run_args` はカンマ区切り（引数にカンマ不可）

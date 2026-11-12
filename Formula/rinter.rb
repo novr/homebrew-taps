@@ -4,10 +4,9 @@ class Rinter < Formula
   version "0.0.10"
   license "MIT"
 
-  on_macos do
-    url "https://github.com/novr/Rin/releases/download/v0.0.10/rinter_0.0.10_darwin.tar.gz"
-    sha256 "2a5c290a230fd7b3cb202e5ba035127f877e77a4f905704115df09b786004bcf"
-  end
+  url "https://github.com/novr/Rin/releases/download/v0.0.10/rinter_0.0.10_darwin.tar.gz"
+  sha256 "2a5c290a230fd7b3cb202e5ba035127f877e77a4f905704115df09b786004bcf"
+  depends_on :macos
 
   def install
     bin.install "rinter"

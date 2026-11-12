@@ -4,10 +4,9 @@ class Br < Formula
   version "0.3.0"
   license "MIT"
 
-  on_macos do
-    url "https://github.com/novr/bitrise-cli/releases/download/v0.3.0/br_0.3.0_darwin.tar.gz"
-    sha256 "f79a0fbcb40c1645e9aacf0f0665abaf0b97beaf211e5d29c965f10ed7a1326a"
-  end
+  url "https://github.com/novr/bitrise-cli/releases/download/v0.3.0/br_0.3.0_darwin.tar.gz"
+  sha256 "f79a0fbcb40c1645e9aacf0f0665abaf0b97beaf211e5d29c965f10ed7a1326a"
+  depends_on :macos
 
   def install
     bin.install "br"

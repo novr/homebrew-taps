@@ -17,7 +17,7 @@ novr org 配下の CLI repo から universal macOS リリースを出し、[home
 | 初回リリース（1回） | `gh api` で `repository_dispatch` | `desc`, `test_match`, `service_*`, `completion_*` など Formula 定義に必要なもの |
 | 2回目以降 | reusable `dispatch-formula` | `formula`, `version`, `sha256` のみ |
 
-`install` / `service` / 補完は初回作成時だけ tap 側に書き込まれる。update では version + url/sha256 だけ更新され、既存ブロックは維持される。
+`install` / `service` / 補完は初回作成時だけ tap 側に書き込まれる。update では version とトップレベルの url/sha256 を更新する。OS 分岐の中に url がある Formula は更新しない。
 
 ### 1. 初回リリース（手動・1回）
 

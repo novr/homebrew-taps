@@ -18,9 +18,9 @@ COMPLETION_FORMAT_PATTERN = /\A(cobra|clap|click|arg|flag|typer|none)\z/
 COMPLETION_ARG_PATTERN = SERVICE_RUN_ARG_PATTERN
 # dispatch 元を novr org に限定する（tap の信頼境界）
 NOVR_GITHUB_URL_PATTERN = %r{\Ahttps://github\.com/novr/}i
-MACOS_URL_SHA256_PATTERN = /(on_macos do\n\s+url )"[^"]+"\n(\s+sha256 )"[^"]+"/m
-# universal 化前の Formula を壊さず移行する
-LEGACY_MACOS_ARM_PATTERN = /on_macos do\n\s+on_arm do\n\s+url "[^"]+"\n\s+sha256 "[^"]+"\n\s+end\n\s+end/m
+TOPLEVEL_URL_SHA256_PATTERN = /(^ *url )"[^"]+"\n( *sha256 )"[^"]+"/
+OS_CONDITIONAL_LINE = /^\s*on_(?:macos|linux|arm|intel|system)\b.*\bdo\b/
+URL_LINE = /^\s*url\s+"/
 
 def formula_path
   name = ENV.fetch("FORMULA")
@@ -251,23 +251,29 @@ def upsert_allowed?
   desc && !desc.empty? && homepage && !homepage.empty?
 end
 
-def macos_block(url, sha256)
-  <<~RUBY.chomp
-    on_macos do
-      url "#{url}"
-      sha256 "#{sha256}"
-    end
-  RUBY
+def os_conditional_url?(content)
+  os_indents = []
+  content.each_line do |line|
+    next if line.strip.empty?
+
+    indent = line[/\A */].size
+    os_indents.pop while os_indents.last && indent <= os_indents.last
+    return true if os_indents.any? && line.match?(URL_LINE)
+
+    os_indents << indent if line.match?(OS_CONDITIONAL_LINE)
+  end
+  false
 end
 
 def replace_macos_url_sha256!(content, url, sha256)
-  if content.match?(MACOS_URL_SHA256_PATTERN)
-    return content.sub(MACOS_URL_SHA256_PATTERN, "\\1\"#{url}\"\n\\2\"#{sha256}\"")
+  abort("url must be top-level: #{formula_path}") if os_conditional_url?(content)
+  abort("Failed to find url/sha256 in #{formula_path}") unless content.match?(TOPLEVEL_URL_SHA256_PATTERN)
+
+  quoted_url = ruby_string(url)
+  quoted_sha = ruby_string(sha256)
+  content.sub(TOPLEVEL_URL_SHA256_PATTERN) do
+    "#{Regexp.last_match(1)}\"#{quoted_url}\"\n#{Regexp.last_match(2)}\"#{quoted_sha}\""
   end
-
-  abort("Failed to find on_macos url/sha256 block in #{formula_path}") unless content.match?(LEGACY_MACOS_ARM_PATTERN)
-
-  content.sub(LEGACY_MACOS_ARM_PATTERN, macos_block(url, sha256))
 end
 
 def update_version(content)
@@ -325,10 +331,9 @@ def formula_template
       version "<%= ruby_string(ENV.fetch("VERSION")) %>"
       license "<%= ruby_string(license) %>"
 
-      on_macos do
-        url "<%= ruby_string(ENV.fetch("URL")) %>"
-        sha256 "<%= ruby_string(ENV.fetch("SHA256")) %>"
-      end
+      url "<%= ruby_string(ENV.fetch("URL")) %>"
+      sha256 "<%= ruby_string(ENV.fetch("SHA256")) %>"
+      depends_on :macos
 
       def install
 <%= install_body %>
