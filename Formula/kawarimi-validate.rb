@@ -1,11 +1,11 @@
 class KawarimiValidate < Formula
   desc "Fail on structural mock/scenario JSON issues that runtime only warns about."
   homepage "https://github.com/novr/Kawarimi"
-  version "4.3.0"
+  version "4.3.1"
   license "MIT"
 
-  url "https://github.com/novr/Kawarimi/releases/download/v4.3.0/kawarimi-validate_4.3.0_darwin.tar.gz"
-  sha256 "18e573aea4232d5328f35508b9b1a009fbf3823de2c017e5881eec1ae8ef20c2"
+  url "https://github.com/novr/Kawarimi/releases/download/v4.3.1/kawarimi-validate_4.3.1_darwin.tar.gz"
+  sha256 "0935e91f96db47afc9d7549c9f76ce09fb20dbff4d916372670768277bfed759"
   depends_on :macos
 
   def install
